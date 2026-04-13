@@ -1,0 +1,202 @@
+#include "decrypt_widget.h"
+#include "helpers.h"
+#include "mod_circle_widget.h"
+#include "rsa.h"
+#include <QApplication>
+#include <QClipboard>
+#include <QLabel>
+#include <QLineEdit>
+#include <QPushButton>
+#include <QRegularExpression>
+#include <QRegularExpressionValidator>
+#include <QTextEdit>
+#include <QWidget>
+#include <boost/multiprecision/cpp_int.hpp>
+#include <qpushbutton.h>
+
+using boost::multiprecision::cpp_int;
+
+QString DecryptWidget::decrypt() {
+  auto d_in = d_edit->toPlainText().trimmed();
+  auto p_in = p_edit->toPlainText().trimmed();
+  auto q_in = q_edit->toPlainText().trimmed();
+  auto ctxt = ciphertext_edit->toPlainText().trimmed();
+
+  const auto error_style =
+      QString("border: 2px solid red; border-radius: %1px;")
+          .arg(mod_scale(this, -2));
+
+  if (d_in.isEmpty() || !validate_num(d_in)) {
+    d_edit->setStyleSheet(error_style);
+    emit error_signal("Please enter d as single number!");
+    return "";
+  }
+  d_edit->setStyleSheet("");
+
+  if (p_in.isEmpty() || !validate_num(p_in)) {
+    p_edit->setStyleSheet(error_style);
+    emit error_signal("Please enter p as single number!");
+    return "";
+  }
+  p_edit->setStyleSheet("");
+
+  if (q_in.isEmpty() || !validate_num(q_in)) {
+    q_edit->setStyleSheet(error_style);
+    emit error_signal("Please enter q as single number!");
+    return "";
+  }
+  q_edit->setStyleSheet("");
+
+  if (ctxt.isEmpty() || !validate_num(ctxt)) {
+    ciphertext_edit->viewport()->setStyleSheet(error_style);
+    emit error_signal("Please enter cipher text as single number!");
+    return "";
+  }
+  ciphertext_edit->setStyleSheet("");
+
+  auto d = cpp_int(d_in.toStdString());
+  auto p = cpp_int(p_in.toStdString());
+  auto q = cpp_int(q_in.toStdString());
+  auto cnum = cpp_int(ctxt.toStdString());
+
+  try {
+    auto ptxt = rsa::decrypt(cnum, d, p, q);
+
+    ciphertext_edit->clear();
+    return ptxt;
+
+  } catch (std::runtime_error &err) {
+    emit error_signal(err.what());
+    return "";
+  }
+}
+
+void DecryptWidget::shared_decrypt() {
+  auto ptxt = decrypt();
+  if (!ptxt.isEmpty()) {
+    emit shared_result_signal(ptxt);
+  }
+}
+
+void DecryptWidget::export_pubkey() {
+  auto d_in = d_edit->toPlainText().trimmed();
+  auto p_in = p_edit->toPlainText().trimmed();
+  auto q_in = q_edit->toPlainText().trimmed();
+
+  const auto error_style =
+      QString("border: 2px solid red; border-radius: %1px;")
+          .arg(mod_scale(this, -2));
+
+  if (d_in.isEmpty() || !validate_num(d_in)) {
+    d_edit->setStyleSheet(error_style);
+    emit error_signal("Please enter d as single number!");
+    return;
+  }
+  d_edit->setStyleSheet("");
+
+  if (p_in.isEmpty() || !validate_num(p_in)) {
+    p_edit->setStyleSheet(error_style);
+    emit error_signal("Please enter p as single number!");
+    return;
+  }
+  p_edit->setStyleSheet("");
+
+  if (q_in.isEmpty() || !validate_num(q_in)) {
+    q_edit->setStyleSheet(error_style);
+    emit error_signal("Please enter q as single number!");
+    return;
+  }
+  q_edit->setStyleSheet("");
+
+  auto d = cpp_int(d_in.toStdString());
+  auto p = cpp_int(p_in.toStdString());
+  auto q = cpp_int(q_in.toStdString());
+
+  cpp_int n = p * q;
+  cpp_int lambda = rsa::lcm(p - 1, q - 1);
+  auto e = rsa::mod_inverse(d, lambda);
+
+  auto export_txt = QString("e=%1\nn=%2").arg(e.str(), n.str());
+  QApplication::clipboard()->setText(export_txt);
+}
+
+void DecryptWidget::update_circle() {
+  auto d_in = d_edit->toPlainText().trimmed();
+  auto p_in = p_edit->toPlainText().trimmed();
+  auto q_in = q_edit->toPlainText().trimmed();
+
+  const auto error_style =
+      QString("border: 2px solid red; border-radius: %1px;")
+          .arg(mod_scale(this, -2));
+
+  if (d_in.isEmpty() || !validate_num(d_in)) {
+    d_edit->setStyleSheet(error_style);
+    emit error_signal("Please enter d as single number!");
+    return;
+  }
+  d_edit->setStyleSheet("");
+
+  if (p_in.isEmpty() || !validate_num(p_in)) {
+    p_edit->setStyleSheet(error_style);
+    emit error_signal("Please enter p as single number!");
+    return;
+  }
+  p_edit->setStyleSheet("");
+
+  if (q_in.isEmpty() || !validate_num(q_in)) {
+    q_edit->setStyleSheet(error_style);
+    emit error_signal("Please enter q as single number!");
+    return;
+  }
+  q_edit->setStyleSheet("");
+
+  auto d = cpp_int(d_in.toStdString());
+  auto p = cpp_int(p_in.toStdString());
+  auto q = cpp_int(q_in.toStdString());
+
+  cpp_int n = p * q;
+  decrypt_circle->set_params(n, d);
+}
+
+DecryptWidget::DecryptWidget(QWidget *parent) : QWidget(parent) {
+  //
+  // Right Half - Decrypt plaintext
+  //
+  auto *num_validator =
+      new QRegularExpressionValidator(QRegularExpression("[0-9]+"), this);
+
+  d_label = new QLabel("Anti-exponent d:");
+  d_edit = new QTextEdit(this);
+  d_edit->setPlaceholderText("Enter private d");
+
+  p_label = new QLabel("Prime p:");
+  p_edit = new QTextEdit(this);
+  p_edit->setPlaceholderText("Enter private p");
+
+  q_label = new QLabel("Prime q:");
+  q_edit = new QTextEdit(this);
+  q_edit->setPlaceholderText("Enter private q");
+
+  ciphertext_label = new QLabel("Ciphertext = P ^ e mod n:");
+  ciphertext_edit = new QTextEdit(this);
+  ciphertext_edit->setPlaceholderText("Enter cyphertext");
+
+  auto input_palette = ciphertext_edit->palette();
+  input_palette.setColor(QPalette::PlaceholderText, QColor(140, 140, 140));
+  p_edit->setPalette(input_palette);
+  q_edit->setPalette(input_palette);
+  d_edit->setPalette(input_palette);
+  ciphertext_edit->setPalette(input_palette);
+
+  decrypt_button = new QPushButton("Decrypt", this);
+  export_pubkey_button = new QPushButton("Export PubKey", this);
+  decrypt_circle = new ModCircleWidget(this);
+  update_circle_button = new QPushButton("Update circle", this);
+
+  connect(decrypt_button, &QPushButton::clicked, this,
+          &DecryptWidget::shared_decrypt);
+  connect(export_pubkey_button, &QPushButton::clicked, this,
+          &DecryptWidget::export_pubkey);
+  connect(update_circle_button, &QPushButton::clicked, this,
+          &DecryptWidget::update_circle);
+}
