@@ -1,10 +1,16 @@
 #pragma once
+#include <QFutureWatcher>
+#include <QLineF>
+#include <QVector>
 #include <QWidget>
 class QLabel;
 class QTextEdit;
 class QLineEdit;
 class QPushButton;
 class ModCircleWidget;
+#include <boost/multiprecision/cpp_int.hpp>
+
+using boost::multiprecision::cpp_int;
 
 class DecryptWidget : public QWidget {
   Q_OBJECT
@@ -25,14 +31,16 @@ public:
 
   QPushButton *decrypt_button;
   QPushButton *export_pubkey_button;
-  QPushButton *update_circle_button;
   ModCircleWidget *decrypt_circle;
+  void
+  update_circle(const QVector<cpp_int> &shared_sample = QVector<cpp_int>());
 
 private:
+  QFutureWatcher<QVector<QLineF>> *circle_watcher = nullptr;
+
   QString decrypt();
   void export_pubkey();
   void shared_decrypt();
-  void update_circle();
 
 signals:
   void error_signal(const QString &message);

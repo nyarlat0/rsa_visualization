@@ -2,7 +2,6 @@
 #include "decrypt_widget.h"
 #include "encrypt_widget.h"
 #include "helpers.h"
-#include "mod_circle_widget.h"
 #include "rsa.h"
 #include <QGraphicsOpacityEffect>
 #include <QGridLayout>
@@ -14,11 +13,13 @@
 #include <QParallelAnimationGroup>
 #include <QPropertyAnimation>
 #include <QPushButton>
+#include <QSignalBlocker>
 #include <QStatusBar>
 #include <QTextEdit>
 #include <QTimer>
 #include <QWidget>
 #include <boost/multiprecision/cpp_int.hpp>
+#include <mod_circle_widget.h>
 
 using boost::multiprecision::cpp_int;
 
@@ -94,11 +95,23 @@ void MainWidget::gen_keys() {
   try {
     rsa::gen_key(e, d, n, p, q);
 
+    QSignalBlocker block_e(encrypt_widget->e_edit);
+    QSignalBlocker block_n(encrypt_widget->n_edit);
+
+    QSignalBlocker block_d(decrypt_widget->d_edit);
+    QSignalBlocker block_p(decrypt_widget->p_edit);
+    QSignalBlocker block_q(decrypt_widget->q_edit);
+
     encrypt_widget->e_edit->setText(e);
     encrypt_widget->n_edit->setText(n);
     decrypt_widget->d_edit->setText(d);
     decrypt_widget->p_edit->setText(p);
     decrypt_widget->q_edit->setText(q);
+
+    auto shared_sample = build_sample(cpp_int(n.toStdString()));
+    encrypt_widget->update_circle(shared_sample);
+    decrypt_widget->update_circle(shared_sample);
+
   } catch (std::runtime_error &err) {
     show_error(err.what());
   }
@@ -177,11 +190,9 @@ MainWidget::MainWidget(QWidget *parent) : QMainWindow(parent) {
 
   auto *l_circle_lay = new QVBoxLayout;
   l_circle_lay->addWidget(encrypt_widget->encrypt_circle);
-  l_circle_lay->addWidget(encrypt_widget->update_circle_button);
 
   auto *r_circle_lay = new QVBoxLayout;
   r_circle_lay->addWidget(decrypt_widget->decrypt_circle);
-  r_circle_lay->addWidget(decrypt_widget->update_circle_button);
 
   auto *ctxt_lay = new QVBoxLayout;
   ctxt_lay->addWidget(decrypt_widget->ciphertext_label);

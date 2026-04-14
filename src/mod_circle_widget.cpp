@@ -1,5 +1,6 @@
 #include "mod_circle_widget.h"
 #include "rsa.h"
+#include <thread>
 
 #include <QPainter>
 #include <QPen>
@@ -12,16 +13,6 @@
 
 ModCircleWidget::ModCircleWidget(QWidget *parent) : QWidget(parent) {
   setMinimumSize(400, 400);
-}
-
-void ModCircleWidget::set_params(const cpp_int &n, const cpp_int &e) {
-  if (n <= 0) {
-    return;
-  }
-
-  mod = n;
-  exp = e;
-  update();
 }
 
 size_t bit_length(const cpp_int &n) {
@@ -121,57 +112,119 @@ QPointF residue_to_point(const cpp_int &a, const cpp_int &mod,
   return QPointF(x, y);
 }
 
+QVector<cpp_int> build_sample(const cpp_int &mod) {
+  constexpr int max_sample_size = 500;
+
+  QVector<cpp_int> sample_vec;
+
+  if (mod <= max_sample_size) {
+    int sample_size = static_cast<int>(mod);
+    sample_vec.reserve(sample_size);
+
+    for (int i = 0; i < sample_size; ++i) {
+      sample_vec.push_back(i);
+    }
+  } else {
+    sample_vec = random_unique_points(mod, max_sample_size);
+  }
+
+  return sample_vec;
+}
+
+QVector<QLineF> build_circle_lines(const QVector<cpp_int> &shared_sample,
+                                   const cpp_int &mod, const cpp_int &exp,
+                                   int width, int height) {
+  if (mod <= 0) {
+    return QVector<QLineF>();
+  }
+
+  const int side = std::min(width, height);
+  const QPointF center(width / 2.0, height / 2.0);
+  const double radius = side * 0.42;
+
+  QVector<cpp_int> sample_vec =
+      shared_sample.isEmpty() ? build_sample(mod) : shared_sample;
+  sample_vec.detach();
+
+  int sample_size = sample_vec.size();
+
+  QVector<QLineF> lines(sample_size);
+
+  unsigned int hw = std::thread::hardware_concurrency();
+  int thread_count = (hw > 1) ? static_cast<int>(hw - 1) : 1;
+
+  if (thread_count == 1) {
+    for (int i = 0; i < sample_size; i++) {
+      const cpp_int &a = sample_vec[i];
+      cpp_int b = rsa::mod_pow(a, exp, mod);
+
+      QPointF pa = residue_to_point(a, mod, center, radius);
+      QPointF pb = residue_to_point(b, mod, center, radius);
+
+      lines[i] = QLineF(pa, pb);
+    }
+
+    return lines;
+  }
+
+  std::vector<std::thread> workers;
+  workers.reserve(thread_count);
+
+  int chunk = (sample_size + thread_count - 1) / thread_count;
+
+  for (int t = 0; t < thread_count; ++t) {
+    int begin = t * chunk;
+    int end = std::min(begin + chunk, sample_size);
+
+    if (begin >= end) {
+      break;
+    }
+
+    workers.emplace_back([&, begin, end]() {
+      for (int i = begin; i < end; ++i) {
+        const cpp_int &a = sample_vec[i];
+        cpp_int b = rsa::mod_pow(a, exp, mod);
+
+        QPointF pa = residue_to_point(a, mod, center, radius);
+        QPointF pb = residue_to_point(b, mod, center, radius);
+
+        lines[i] = QLineF(pa, pb);
+      }
+    });
+  }
+
+  for (auto &th : workers) {
+    th.join();
+  }
+
+  return lines;
+}
+
+void ModCircleWidget::set_lines(const QVector<QLineF> &lines) {
+  cached_lines = lines;
+  update();
+}
+
+void ModCircleWidget::clear_plot() {
+  cached_lines.clear();
+  update();
+}
+
 void ModCircleWidget::paintEvent(QPaintEvent *event) {
   Q_UNUSED(event);
 
   QPainter p(this);
   p.setRenderHint(QPainter::Antialiasing, true);
 
-  if (mod <= 0) {
-    p.setPen(Qt::black);
-    p.drawText(rect(), Qt::AlignCenter, "n must be positive");
-    return;
-  }
-
   const int side = std::min(width(), height());
   const QPointF center(width() / 2.0, height() / 2.0);
   const double radius = side * 0.42;
 
-  //
-  // Build cpp_int sample
-  //
-
-  constexpr int max_sample_size = 500;
-
-  QVector<cpp_int> sample_vec;
-  int sample_size;
-  if (mod <= max_sample_size) {
-    sample_size = static_cast<int>(mod);
-    sample_vec.reserve(sample_size);
-
-    for (int i = 0; i < sample_size; i++) {
-      sample_vec.push_back(i);
-    }
-
-  } else {
-    sample_size = max_sample_size;
-    sample_vec = random_unique_points(mod, sample_size);
-  }
-
-  //
-  // Turn sample int into points on circle
-  // and draw chords
-  //
-
   // Outer circle
   p.drawEllipse(center, radius, radius);
 
-  for (const cpp_int &a : sample_vec) {
-    cpp_int b = rsa::mod_pow(a, exp, mod);
-
-    QPointF pa = residue_to_point(a, mod, center, radius);
-    QPointF pb = residue_to_point(b, mod, center, radius);
-
-    p.drawLine(pa, pb);
+  // Chords
+  for (const QLineF &line : cached_lines) {
+    p.drawLine(line);
   }
 }

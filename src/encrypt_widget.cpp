@@ -12,7 +12,9 @@
 #include <QTextEdit>
 #include <QVBoxLayout>
 #include <QWidget>
+#include <QtConcurrent>
 #include <boost/multiprecision/cpp_int.hpp>
+#include <qlineedit.h>
 
 using boost::multiprecision::cpp_int;
 
@@ -107,7 +109,7 @@ void EncryptWidget::export_encrypted() {
   }
 }
 
-void EncryptWidget::update_circle() {
+void EncryptWidget::update_circle(const QVector<cpp_int> &shared_sample) {
   auto e_in = e_edit->text().trimmed();
   auto n_in = n_edit->toPlainText().trimmed();
 
@@ -132,13 +134,24 @@ void EncryptWidget::update_circle() {
   auto e = cpp_int(e_in.toStdString());
   auto n = cpp_int(n_in.toStdString());
 
-  encrypt_circle->set_params(n, e);
+  const int w = encrypt_circle->width();
+  const int h = encrypt_circle->height();
+
+  auto future = QtConcurrent::run([shared_sample, n, e, w, h] {
+    return build_circle_lines(shared_sample, n, e, w, h);
+  });
+
+  circle_watcher->setFuture(future);
 }
 
 EncryptWidget::EncryptWidget(QWidget *parent) : QWidget(parent) {
   //
   // Left Half - Encrypt plaintext
   //
+
+  circle_watcher = new QFutureWatcher<QVector<QLineF>>(this);
+  connect(circle_watcher, &QFutureWatcher<QVector<QLineF>>::finished, this,
+          [this]() { encrypt_circle->set_lines(circle_watcher->result()); });
 
   auto *num_validator =
       new QRegularExpressionValidator(QRegularExpression("[0-9]+"), this);
@@ -166,7 +179,6 @@ EncryptWidget::EncryptWidget(QWidget *parent) : QWidget(parent) {
   import_pubkey_button = new QPushButton("Import PubKey", this);
   export_encrypted_button = new QPushButton("Encrypt to clipboard", this);
   encrypt_circle = new ModCircleWidget(this);
-  update_circle_button = new QPushButton("Update circle", this);
 
   connect(encrypt_button, &QPushButton::clicked, this,
           &EncryptWidget::shared_encrypt);
@@ -174,6 +186,6 @@ EncryptWidget::EncryptWidget(QWidget *parent) : QWidget(parent) {
           &EncryptWidget::import_pubkey);
   connect(export_encrypted_button, &QPushButton::clicked, this,
           &EncryptWidget::export_encrypted);
-  connect(update_circle_button, &QPushButton::clicked, this,
-          &EncryptWidget::update_circle);
+  connect(n_edit, &QTextEdit::textChanged, this, [this] { update_circle(); });
+  connect(e_edit, &QLineEdit::textChanged, this, [this] { update_circle(); });
 }

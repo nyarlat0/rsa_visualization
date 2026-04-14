@@ -11,6 +11,7 @@
 #include <QRegularExpressionValidator>
 #include <QTextEdit>
 #include <QWidget>
+#include <QtConcurrent>
 #include <boost/multiprecision/cpp_int.hpp>
 #include <qpushbutton.h>
 
@@ -120,7 +121,7 @@ void DecryptWidget::export_pubkey() {
   QApplication::clipboard()->setText(export_txt);
 }
 
-void DecryptWidget::update_circle() {
+void DecryptWidget::update_circle(const QVector<cpp_int> &shared_sample) {
   auto d_in = d_edit->toPlainText().trimmed();
   auto p_in = p_edit->toPlainText().trimmed();
   auto q_in = q_edit->toPlainText().trimmed();
@@ -155,13 +156,24 @@ void DecryptWidget::update_circle() {
   auto q = cpp_int(q_in.toStdString());
 
   cpp_int n = p * q;
-  decrypt_circle->set_params(n, d);
+  const int w = decrypt_circle->width();
+  const int h = decrypt_circle->height();
+
+  auto future = QtConcurrent::run([shared_sample, n, d, w, h] {
+    return build_circle_lines(shared_sample, n, d, w, h);
+  });
+  circle_watcher->setFuture(future);
 }
 
 DecryptWidget::DecryptWidget(QWidget *parent) : QWidget(parent) {
   //
   // Right Half - Decrypt plaintext
   //
+
+  circle_watcher = new QFutureWatcher<QVector<QLineF>>(this);
+  connect(circle_watcher, &QFutureWatcher<QVector<QLineF>>::finished, this,
+          [this]() { decrypt_circle->set_lines(circle_watcher->result()); });
+
   auto *num_validator =
       new QRegularExpressionValidator(QRegularExpression("[0-9]+"), this);
 
@@ -191,12 +203,12 @@ DecryptWidget::DecryptWidget(QWidget *parent) : QWidget(parent) {
   decrypt_button = new QPushButton("Decrypt", this);
   export_pubkey_button = new QPushButton("Export PubKey", this);
   decrypt_circle = new ModCircleWidget(this);
-  update_circle_button = new QPushButton("Update circle", this);
 
   connect(decrypt_button, &QPushButton::clicked, this,
           &DecryptWidget::shared_decrypt);
   connect(export_pubkey_button, &QPushButton::clicked, this,
           &DecryptWidget::export_pubkey);
-  connect(update_circle_button, &QPushButton::clicked, this,
-          &DecryptWidget::update_circle);
+  connect(p_edit, &QTextEdit::textChanged, this, [this] { update_circle(); });
+  connect(q_edit, &QTextEdit::textChanged, this, [this] { update_circle(); });
+  connect(d_edit, &QTextEdit::textChanged, this, [this] { update_circle(); });
 }
