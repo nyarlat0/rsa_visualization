@@ -134,11 +134,8 @@ void EncryptWidget::update_circle(const QVector<cpp_int> &shared_sample) {
   auto e = cpp_int(e_in.toStdString());
   auto n = cpp_int(n_in.toStdString());
 
-  const int w = encrypt_circle->width();
-  const int h = encrypt_circle->height();
-
-  auto future = QtConcurrent::run([shared_sample, n, e, w, h] {
-    return build_circle_lines(shared_sample, n, e, w, h);
+  auto future = QtConcurrent::run([shared_sample, n, e] {
+    return build_circle_lines(shared_sample, n, e);
   });
 
   circle_watcher->setFuture(future);

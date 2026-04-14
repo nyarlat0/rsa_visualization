@@ -156,11 +156,9 @@ void DecryptWidget::update_circle(const QVector<cpp_int> &shared_sample) {
   auto q = cpp_int(q_in.toStdString());
 
   cpp_int n = p * q;
-  const int w = decrypt_circle->width();
-  const int h = decrypt_circle->height();
 
-  auto future = QtConcurrent::run([shared_sample, n, d, w, h] {
-    return build_circle_lines(shared_sample, n, d, w, h);
+  auto future = QtConcurrent::run([shared_sample, n, d] {
+    return build_circle_lines(shared_sample, n, d);
   });
   circle_watcher->setFuture(future);
 }

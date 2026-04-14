@@ -6,8 +6,7 @@
 using boost::multiprecision::cpp_int;
 
 QVector<QLineF> build_circle_lines(const QVector<cpp_int> &shared_sample,
-                                   const cpp_int &mod, const cpp_int &exp,
-                                   int width, int height);
+                                   const cpp_int &mod, const cpp_int &exp);
 
 QVector<cpp_int> build_sample(const cpp_int &mod);
 
