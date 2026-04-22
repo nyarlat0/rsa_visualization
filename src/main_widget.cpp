@@ -2,6 +2,7 @@
 #include "decrypt_widget.h"
 #include "encrypt_widget.h"
 #include "helpers.h"
+#include "mod_circle_widget.h"
 #include "rsa.h"
 #include <QGraphicsOpacityEffect>
 #include <QGridLayout>
@@ -18,8 +19,8 @@
 #include <QTextEdit>
 #include <QTimer>
 #include <QWidget>
+#include <QtConcurrent>
 #include <boost/multiprecision/cpp_int.hpp>
-#include <mod_circle_widget.h>
 
 using boost::multiprecision::cpp_int;
 
@@ -90,10 +91,10 @@ void MainWidget::show_error(const QString &text) {
 }
 
 void MainWidget::gen_keys() {
-  QString e, d, n, p, q;
+  QString e_str, d_str, n_str, p_str, q_str;
   auto message = encrypt_widget->plaintext_edit->toPlainText().trimmed();
   try {
-    rsa::gen_key(e, d, n, p, q);
+    rsa::gen_key(e_str, d_str, n_str, p_str, q_str);
 
     QSignalBlocker block_e(encrypt_widget->e_edit);
     QSignalBlocker block_n(encrypt_widget->n_edit);
@@ -102,15 +103,29 @@ void MainWidget::gen_keys() {
     QSignalBlocker block_p(decrypt_widget->p_edit);
     QSignalBlocker block_q(decrypt_widget->q_edit);
 
-    encrypt_widget->e_edit->setText(e);
-    encrypt_widget->n_edit->setText(n);
-    decrypt_widget->d_edit->setText(d);
-    decrypt_widget->p_edit->setText(p);
-    decrypt_widget->q_edit->setText(q);
+    encrypt_widget->e_edit->setText(e_str);
+    encrypt_widget->n_edit->setText(n_str);
+    decrypt_widget->d_edit->setText(d_str);
+    decrypt_widget->p_edit->setText(p_str);
+    decrypt_widget->q_edit->setText(q_str);
 
-    auto shared_sample = build_sample(cpp_int(n.toStdString()));
-    encrypt_widget->update_circle(shared_sample);
-    decrypt_widget->update_circle(shared_sample);
+    auto n = cpp_int(n_str.toStdString());
+    auto e = cpp_int(e_str.toStdString());
+    auto d = cpp_int(d_str.toStdString());
+
+    auto future = QtConcurrent::run([n, e, d] {
+      auto enc_a_vec = build_sample(n);
+      auto enc_b_vec = compute_b(enc_a_vec, n, e);
+      auto enc_lines = build_circle_lines(enc_a_vec, enc_b_vec, n);
+
+      auto dec_a_vec = enc_b_vec;
+      auto dec_b_vec = compute_b(dec_a_vec, n, d);
+      auto dec_lines = build_circle_lines(dec_a_vec, dec_b_vec, n);
+
+      return CirclesLines{enc_lines, dec_lines};
+    });
+
+    circles_watcher->setFuture(future);
 
   } catch (std::runtime_error &err) {
     show_error(err.what());
@@ -124,6 +139,7 @@ MainWidget::MainWidget(QWidget *parent) : QMainWindow(parent) {
 
   encrypt_widget = new EncryptWidget(this);
   decrypt_widget = new DecryptWidget(this);
+  circles_watcher = new QFutureWatcher<CirclesLines>(this);
 
   connect(encrypt_widget, &EncryptWidget::error_signal, this,
           &MainWidget::show_error);
@@ -141,6 +157,15 @@ MainWidget::MainWidget(QWidget *parent) : QMainWindow(parent) {
 
   auto gen_keys_button = new QPushButton("Generate keys", this);
   connect(gen_keys_button, &QPushButton::clicked, this, &MainWidget::gen_keys);
+
+  connect(circles_watcher, &QFutureWatcher<CirclesLines>::finished, this,
+          [this]() {
+            encrypt_widget->encrypt_circle->set_lines(
+                circles_watcher->result().enc_lines);
+
+            decrypt_widget->decrypt_circle->set_lines(
+                circles_watcher->result().dec_lines);
+          });
 
   const int input_spacing = mod_scale(this, -2);
   const int grid_sapcing = mod_scale(this, 1);

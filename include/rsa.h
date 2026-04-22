@@ -19,6 +19,6 @@ cpp_int lcm(const cpp_int &a, const cpp_int &b);
 
 cpp_int mod_inverse(const cpp_int &a, const cpp_int &mod);
 
-cpp_int mod_pow(const cpp_int &a, const cpp_int &exp, const cpp_int &mod);
+cpp_int mod_pow(cpp_int a, cpp_int exp, const cpp_int &mod);
 
 } // namespace rsa

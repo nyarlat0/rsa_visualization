@@ -112,29 +112,8 @@ QPointF residue_to_point(const cpp_int &a, const cpp_int &mod,
   return QPointF(x, y);
 }
 
-static double angle01(const QPointF &v) {
-  double a = std::atan2(-v.y(), v.x());
-  constexpr double tau = 2.0 * std::numbers::pi_v<double>;
-
-  if (a < 0.0)
-    a += tau;
-
-  return a / tau;
-}
-
-static double circular_delta(double from, double to) {
-  double d = to - from;
-
-  if (d > 0.5)
-    d -= 1.0;
-  if (d < -0.5)
-    d += 1.0;
-
-  return d; // -0.5 .. +0.5
-}
-
 QVector<cpp_int> build_sample(const cpp_int &mod) {
-  constexpr int max_sample_size = 5000;
+  constexpr int max_sample_size = 500;
 
   QVector<cpp_int> sample_vec;
 
@@ -152,38 +131,21 @@ QVector<cpp_int> build_sample(const cpp_int &mod) {
   return sample_vec;
 }
 
-QVector<QLineF> build_circle_lines(const QVector<cpp_int> &shared_sample,
-                                   const cpp_int &mod, const cpp_int &exp) {
-  if (mod <= 0) {
-    return QVector<QLineF>();
-  }
-
-  const QPointF center(0.0, 0.0);
-  const double radius = 1.0;
-
-  QVector<cpp_int> sample_vec =
-      shared_sample.isEmpty() ? build_sample(mod) : shared_sample;
-  sample_vec.detach();
-
-  int sample_size = sample_vec.size();
-
-  QVector<QLineF> lines(sample_size);
+QVector<cpp_int> compute_b(const QVector<cpp_int> &a_vec, const cpp_int &mod,
+                           const cpp_int &exp) {
+  const int sample_size = a_vec.size();
+  auto b_vec = QVector<cpp_int>(sample_size);
 
   unsigned int hw = std::thread::hardware_concurrency();
   int thread_count = (hw > 1) ? static_cast<int>(hw - 1) : 1;
 
   if (thread_count == 1) {
     for (int i = 0; i < sample_size; i++) {
-      const cpp_int &a = sample_vec[i];
-      cpp_int b = rsa::mod_pow(a, exp, mod);
-
-      QPointF pa = residue_to_point(a, mod, center, radius);
-      QPointF pb = residue_to_point(b, mod, center, radius);
-
-      lines[i] = QLineF(pa, pb);
+      const cpp_int &a = a_vec[i];
+      b_vec[i] = rsa::mod_pow(a, exp, mod);
     }
 
-    return lines;
+    return b_vec;
   }
 
   std::vector<std::thread> workers;
@@ -201,13 +163,8 @@ QVector<QLineF> build_circle_lines(const QVector<cpp_int> &shared_sample,
 
     workers.emplace_back([&, begin, end]() {
       for (int i = begin; i < end; ++i) {
-        const cpp_int &a = sample_vec[i];
-        cpp_int b = rsa::mod_pow(a, exp, mod);
-
-        QPointF pa = residue_to_point(a, mod, center, radius);
-        QPointF pb = residue_to_point(b, mod, center, radius);
-
-        lines[i] = QLineF(pa, pb);
+        const cpp_int &a = a_vec[i];
+        b_vec[i] = rsa::mod_pow(a, exp, mod);
       }
     });
   }
@@ -216,28 +173,34 @@ QVector<QLineF> build_circle_lines(const QVector<cpp_int> &shared_sample,
     th.join();
   }
 
-  return lines;
+  return b_vec;
 }
 
-static double point_hue(const QPointF &v) {
-  constexpr double pi = std::numbers::pi;
-
-  double angle = std::atan2(-v.y(), v.x());
-  if (angle < 0.0) {
-    angle += 2.0 * pi;
+QVector<QLineF> build_circle_lines(const QVector<cpp_int> a_vec,
+                                   const QVector<cpp_int> b_vec,
+                                   const cpp_int &mod) {
+  if (mod <= 0) {
+    return QVector<QLineF>();
   }
 
-  return angle / (2.0 * pi);
-}
+  const QPointF center(0.0, 0.0);
+  const double radius = 1.0;
 
-static double alpha_scale_for_line_count(int line_count) {
-  constexpr double reference_line_count = 400.0;
-  constexpr double exponent = 0.6;
+  int sample_size = a_vec.size();
 
-  double safe_count = std::max(1, line_count);
-  double scale = std::pow(reference_line_count / safe_count, exponent);
+  QVector<QLineF> lines(sample_size);
 
-  return std::clamp(scale, 1.5, 2.0);
+  for (int i = 0; i < sample_size; i++) {
+    const cpp_int &a = a_vec[i];
+    const cpp_int &b = b_vec[i];
+
+    QPointF pa = residue_to_point(a, mod, center, radius);
+    QPointF pb = residue_to_point(b, mod, center, radius);
+
+    lines[i] = QLineF(pa, pb);
+  }
+
+  return lines;
 }
 
 void ModCircleWidget::set_lines(const QVector<QLineF> &lines) {
@@ -256,15 +219,6 @@ void ModCircleWidget::paintEvent(QPaintEvent *event) {
   QPainter p(this);
   p.setRenderHint(QPainter::Antialiasing, true);
 
-  QImage heat(size(), QImage::Format_ARGB32_Premultiplied);
-  heat.fill(Qt::transparent);
-
-  QPainter hp(&heat);
-  hp.setRenderHint(QPainter::Antialiasing);
-
-  // Overlaps ADD color instead of replacing it
-  hp.setCompositionMode(QPainter::CompositionMode_Plus);
-
   const int side = std::min(width(), height());
   const QPointF center(width() / 2.0, height() / 2.0);
   const double radius = side * 0.45;
@@ -272,45 +226,12 @@ void ModCircleWidget::paintEvent(QPaintEvent *event) {
   // Outer circle
   p.drawEllipse(center, radius, radius);
 
-  const double alpha_scale = alpha_scale_for_line_count(cached_lines.size());
-
   // Chords
   for (const QLineF &cline : cached_lines) {
     QPointF a = cline.p1();
     QPointF b = cline.p2();
 
     auto line = QLineF(center + a * radius, center + b * radius);
-
-    double h1 = angle01(cline.p1());
-    double h2 = angle01(cline.p2());
-
-    double jump = circular_delta(h1, h2);
-
-    // negative jump = blue/cyan, positive jump = red/yellow
-    double hue = jump < 0.0 ? 0.58 : 0.04;
-
-    // Keep HSV channels in range even if the angular jump overshoots.
-    double strength = std::clamp(std::abs(jump) * 2.0, 0.0, 1.0);
-
-    double start_alpha =
-        std::clamp((0.020 + 0.030 * strength) * alpha_scale, 0.004, 0.18);
-    double end_alpha =
-        std::clamp((0.060 + 0.120 * strength) * alpha_scale, 0.010, 0.42);
-
-    QColor start =
-        QColor::fromHsvF(hue, 0.95, 0.45 + 0.35 * strength, start_alpha);
-    QColor end = QColor::fromHsvF(hue, 0.95, 0.75 + 0.25 * strength, end_alpha);
-
-    QLinearGradient grad(line.p1(), line.p2());
-    grad.setColorAt(0.0, start);
-    grad.setColorAt(1.0, end);
-
-    QPen pen(QBrush(grad), 1.1);
-    pen.setCapStyle(Qt::RoundCap);
-    hp.setPen(pen);
-    hp.drawLine(line);
+    p.drawLine(line);
   }
-
-  hp.end();
-  p.drawImage(0, 0, heat);
 }

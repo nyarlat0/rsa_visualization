@@ -1,10 +1,18 @@
 #pragma once
 
+#include <QFutureWatcher>
+#include <QLineF>
 #include <QMainWindow>
+#include <QVector>
 
 class QLayout;
 class EncryptWidget;
 class DecryptWidget;
+
+struct CirclesLines {
+  QVector<QLineF> enc_lines;
+  QVector<QLineF> dec_lines;
+};
 
 class MainWidget : public QMainWindow {
   Q_OBJECT
@@ -16,4 +24,6 @@ public:
 
   void show_error(const QString &text);
   void gen_keys();
+
+  QFutureWatcher<CirclesLines> *circles_watcher = nullptr;
 };

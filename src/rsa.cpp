@@ -38,18 +38,16 @@ cpp_int encrypt(const QString &plaintext, const cpp_int &e, const cpp_int &n) {
   return mod_pow(m, e, n);
 }
 
-cpp_int mod_pow(const cpp_int &a, const cpp_int &exp, const cpp_int &mod) {
-  cpp_int e = exp;
-  cpp_int m = a;
+cpp_int mod_pow(cpp_int a, cpp_int exp, const cpp_int &mod) {
 
   cpp_int result = 1;
-  while (e > 0) {
-    if (e & 1) {
-      result = (result * m) % mod;
+  while (exp > 0) {
+    if (exp & 1) {
+      result = (result * a) % mod;
     }
 
-    m = (m * m) % mod;
-    e >>= 1;
+    a = (a * a) % mod;
+    exp >>= 1;
   }
 
   return result;

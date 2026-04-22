@@ -32,8 +32,7 @@ public:
   QPushButton *decrypt_button;
   QPushButton *export_pubkey_button;
   ModCircleWidget *decrypt_circle;
-  void
-  update_circle(const QVector<cpp_int> &shared_sample = QVector<cpp_int>());
+  void update_circle();
 
 private:
   QFutureWatcher<QVector<QLineF>> *circle_watcher = nullptr;

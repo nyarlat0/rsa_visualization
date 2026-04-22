@@ -121,7 +121,7 @@ void DecryptWidget::export_pubkey() {
   QApplication::clipboard()->setText(export_txt);
 }
 
-void DecryptWidget::update_circle(const QVector<cpp_int> &shared_sample) {
+void DecryptWidget::update_circle() {
   auto d_in = d_edit->toPlainText().trimmed();
   auto p_in = p_edit->toPlainText().trimmed();
   auto q_in = q_edit->toPlainText().trimmed();
@@ -157,9 +157,12 @@ void DecryptWidget::update_circle(const QVector<cpp_int> &shared_sample) {
 
   cpp_int n = p * q;
 
-  auto future = QtConcurrent::run([shared_sample, n, d] {
-    return build_circle_lines(shared_sample, n, d);
+  auto future = QtConcurrent::run([n, d] {
+    auto a_vec = build_sample(n);
+    auto b_vec = compute_b(a_vec, n, d);
+    return build_circle_lines(a_vec, b_vec, n);
   });
+
   circle_watcher->setFuture(future);
 }
 
@@ -206,7 +209,7 @@ DecryptWidget::DecryptWidget(QWidget *parent) : QWidget(parent) {
           &DecryptWidget::shared_decrypt);
   connect(export_pubkey_button, &QPushButton::clicked, this,
           &DecryptWidget::export_pubkey);
-  connect(p_edit, &QTextEdit::textChanged, this, [this] { update_circle(); });
-  connect(q_edit, &QTextEdit::textChanged, this, [this] { update_circle(); });
-  connect(d_edit, &QTextEdit::textChanged, this, [this] { update_circle(); });
+  connect(p_edit, &QTextEdit::textChanged, this, &DecryptWidget::update_circle);
+  connect(q_edit, &QTextEdit::textChanged, this, &DecryptWidget::update_circle);
+  connect(d_edit, &QTextEdit::textChanged, this, &DecryptWidget::update_circle);
 }

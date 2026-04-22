@@ -109,7 +109,7 @@ void EncryptWidget::export_encrypted() {
   }
 }
 
-void EncryptWidget::update_circle(const QVector<cpp_int> &shared_sample) {
+void EncryptWidget::update_circle() {
   auto e_in = e_edit->text().trimmed();
   auto n_in = n_edit->toPlainText().trimmed();
 
@@ -134,8 +134,10 @@ void EncryptWidget::update_circle(const QVector<cpp_int> &shared_sample) {
   auto e = cpp_int(e_in.toStdString());
   auto n = cpp_int(n_in.toStdString());
 
-  auto future = QtConcurrent::run([shared_sample, n, e] {
-    return build_circle_lines(shared_sample, n, e);
+  auto future = QtConcurrent::run([n, e] {
+    auto a_vec = build_sample(n);
+    auto b_vec = compute_b(a_vec, n, e);
+    return build_circle_lines(a_vec, b_vec, n);
   });
 
   circle_watcher->setFuture(future);
@@ -183,6 +185,6 @@ EncryptWidget::EncryptWidget(QWidget *parent) : QWidget(parent) {
           &EncryptWidget::import_pubkey);
   connect(export_encrypted_button, &QPushButton::clicked, this,
           &EncryptWidget::export_encrypted);
-  connect(n_edit, &QTextEdit::textChanged, this, [this] { update_circle(); });
-  connect(e_edit, &QLineEdit::textChanged, this, [this] { update_circle(); });
+  connect(n_edit, &QTextEdit::textChanged, this, &EncryptWidget::update_circle);
+  connect(e_edit, &QLineEdit::textChanged, this, &EncryptWidget::update_circle);
 }
