@@ -1,9 +1,11 @@
 cmake_minimum_required(VERSION 3.16)
 project(rsa_visualization LANGUAGES CXX)
 
-set(CMAKE_CXX_STANDARD 26)
+set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
+
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 find_package(Qt6 REQUIRED COMPONENTS Widgets Concurrent)
 qt_standard_project_setup()
@@ -24,12 +26,22 @@ qt_add_executable(${PROJECT_NAME}
 )
 
 target_include_directories(${PROJECT_NAME} PRIVATE include)
-target_link_libraries(${PROJECT_NAME} PRIVATE Qt6::Widgets Qt6::Concurrent)
-target_link_libraries(${PROJECT_NAME} PRIVATE OpenSSL::Crypto)
+target_link_libraries(${PROJECT_NAME}
+  PRIVATE
+    Qt6::Widgets
+    Qt6::Concurrent
+    OpenSSL::Crypto
+)
 
 add_custom_target(
   run
   COMMAND $<TARGET_FILE:${PROJECT_NAME}>
   DEPENDS ${PROJECT_NAME}
   WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+)
+
+include(GNUInstallDirs)
+
+install(TARGETS ${PROJECT_NAME}
+    RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
 )

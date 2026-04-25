@@ -1,0 +1,163 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  linux:
+    name: Build Linux AppImage
+    runs-on: ubuntu-22.04
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            build-essential \
+            cmake \
+            ninja-build \
+            libgl1-mesa-dev \
+            libxkbcommon-x11-0 \
+            libxcb-cursor0 \
+            libxcb-icccm4 \
+            libxcb-image0 \
+            libxcb-keysyms1 \
+            libxcb-render-util0 \
+            libxcb-xinerama0 \
+            libxcb-xinput0 \
+            libssl-dev \
+            patchelf \
+            wget
+
+      - name: Install Qt
+        uses: jurplel/install-qt-action@v4
+        with:
+          version: "6.7.3"
+          modules: "qtbase"
+
+      - name: Configure
+        run: |
+          cmake -S . -B build \
+            -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_INSTALL_PREFIX=AppDir/usr
+
+      - name: Build
+        run: cmake --build build --config Release
+
+      - name: Install into AppDir
+        run: cmake --install build --config Release
+
+      - name: Prepare AppDir desktop files
+        run: |
+          mkdir -p AppDir/usr/share/applications
+          mkdir -p AppDir/usr/share/icons/hicolor/256x256/apps
+
+          cat > AppDir/usr/share/applications/rsa_visualization.desktop <<EOF
+          [Desktop Entry]
+          Type=Application
+          Name=RSA Visualization
+          Exec=rsa_visualization
+          Icon=rsa_visualization
+          Categories=Education;Science;
+          EOF
+
+          # temporary placeholder icon; replace later with real icon
+          convert -size 256x256 xc:transparent AppDir/usr/share/icons/hicolor/256x256/apps/rsa_visualization.png || true
+
+      - name: Download linuxdeploy and Qt plugin
+        run: |
+          wget -O linuxdeploy-x86_64.AppImage \
+            https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-x86_64.AppImage
+          wget -O linuxdeploy-plugin-qt-x86_64.AppImage \
+            https://github.com/linuxdeploy/linuxdeploy-plugin-qt/releases/download/continuous/linuxdeploy-plugin-qt-x86_64.AppImage
+
+          chmod +x linuxdeploy-x86_64.AppImage linuxdeploy-plugin-qt-x86_64.AppImage
+
+      - name: Build AppImage
+        run: |
+          export QMAKE="${Qt6_DIR}/../../../bin/qmake"
+          ./linuxdeploy-x86_64.AppImage \
+            --appdir AppDir \
+            --plugin qt \
+            --output appimage
+
+      - name: Rename Linux artifact
+        run: |
+          mv RSA_Visualization*.AppImage rsa_visualization-linux-x86_64.AppImage || \
+          mv *.AppImage rsa_visualization-linux-x86_64.AppImage
+
+      - name: Upload Linux artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: rsa_visualization-linux-x86_64
+          path: rsa_visualization-linux-x86_64.AppImage
+
+  windows:
+    name: Build Windows zip
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Install Qt
+        uses: jurplel/install-qt-action@v4
+        with:
+          version: "6.7.3"
+          arch: "win64_msvc2022_64"
+          modules: "qtbase"
+
+      - name: Configure
+        run: |
+          cmake -S . -B build -G "Visual Studio 17 2022" -A x64 -DCMAKE_BUILD_TYPE=Release
+
+      - name: Build
+        run: |
+          cmake --build build --config Release
+
+      - name: Deploy Qt runtime
+        shell: pwsh
+        run: |
+          mkdir package
+          copy build\Release\rsa_visualization.exe package\
+          windeployqt package\rsa_visualization.exe --release
+
+      - name: Zip Windows package
+        shell: pwsh
+        run: |
+          Compress-Archive -Path package\* -DestinationPath rsa_visualization-windows-x86_64.zip
+
+      - name: Upload Windows artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: rsa_visualization-windows-x86_64
+          path: rsa_visualization-windows-x86_64.zip
+
+  release:
+    name: Create GitHub Release
+    needs:
+      - linux
+      - windows
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Download artifacts
+        uses: actions/download-artifact@v5
+        with:
+          path: dist
+          merge-multiple: true
+
+      - name: Create release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*
+          generate_release_notes: true
