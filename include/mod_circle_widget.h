@@ -20,6 +20,8 @@ QVector<QLineF> build_circle_lines(const QVector<cpp_int> a_vec,
 class ModCircleWidget : public QWidget {
 
 public:
+  static constexpr int kDefaultAnimationTrailMaxPoints = 400;
+
   explicit ModCircleWidget(QWidget *parent = nullptr);
 
   void set_lines(const QVector<QLineF> &lines);
@@ -28,6 +30,8 @@ public:
   void animate_point(cpp_int m);
   void set_params(cpp_int new_mod, cpp_int new_exp);
   void set_loading(bool loading);
+  void set_animations_enabled(bool enabled);
+  void set_animation_trail_max_points(int max_points);
 
 protected:
   void paintEvent(QPaintEvent *event) override;
@@ -52,14 +56,19 @@ private:
 
   void advance_animation();
   void set_animation_segment();
+  void append_animated_point_to_trail();
+  void draw_animated_point(QPainter &p);
 
   QVector<QLineF> cached_lines;
   QChronoTimer *animation_timer = nullptr;
   QPointF animation_start_point;
   QPointF animation_end_point;
   QPointF animated_point;
+  QVector<QPointF> animation_trail;
+  int animation_trail_max_points = kDefaultAnimationTrailMaxPoints;
   int animation_segment_frames = 1;
   int animation_frame = 0;
+  bool animations_enabled = true;
   bool show_animated_point = false;
   cpp_int animation_base = 0;
   cpp_int animation_current_residue = 0;

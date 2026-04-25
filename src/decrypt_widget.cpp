@@ -45,7 +45,7 @@ bool DecryptWidget::validate_fields(const QString &d_in, const QString &p_in,
   q_edit->setStyleSheet("");
 
   if (ctxt.isEmpty() || !validate_num(ctxt)) {
-    ciphertext_edit->viewport()->setStyleSheet(error_style);
+    ciphertext_edit->setStyleSheet(error_style);
     emit error_signal("Please enter cipher text as single number!");
     return false;
   }

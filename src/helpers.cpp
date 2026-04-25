@@ -11,9 +11,8 @@ int mod_scale(QWidget *w, int scale, double ratio) {
 
 bool validate_num(const QString &txt) {
   for (const auto &ch : txt) {
-    if (!ch.isDigit()) {
+    if (!ch.isDigit())
       return false;
-    }
   }
   return true;
 }

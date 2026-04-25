@@ -39,7 +39,7 @@ bool EncryptWidget::validate_fields(const QString &e_in, const QString &n_in,
   n_edit->setStyleSheet("");
 
   if (ptxt.isEmpty()) {
-    plaintext_edit->viewport()->setStyleSheet(error_style);
+    plaintext_edit->setStyleSheet(error_style);
     emit error_signal("Please enter plain text!");
     return false;
   }

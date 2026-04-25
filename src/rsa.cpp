@@ -21,19 +21,16 @@ cpp_int encode_message(const QString &m) {
 
 cpp_int encrypt(const QString &plaintext, const cpp_int &e, const cpp_int &n) {
 
-  if (e <= 0) {
+  if (e <= 0)
     throw std::runtime_error("Exponent e should be nonzero!");
-  }
 
-  if (n <= 0) {
+  if (n <= 0)
     throw std::runtime_error("Modulus n should be nonzero!");
-  }
 
   auto m = encode_message(plaintext);
 
-  if (m >= n) {
+  if (m >= n)
     throw std::runtime_error("Message is too big to be encoded with given n!");
-  }
 
   return mod_pow(m, e, n);
 }
@@ -42,9 +39,8 @@ cpp_int mod_pow(cpp_int a, cpp_int exp, const cpp_int &mod) {
 
   cpp_int result = 1;
   while (exp > 0) {
-    if (exp & 1) {
+    if (exp & 1)
       result = (result * a) % mod;
-    }
 
     a = (a * a) % mod;
     exp >>= 1;
@@ -86,27 +82,24 @@ cpp_int mod_inverse(const cpp_int &a, const cpp_int &mod) {
   cpp_int x, y;
   cpp_int g = extended_gcd(a, mod, x, y);
 
-  if (g != 1) {
+  if (g != 1)
     throw std::runtime_error(
         "Value has no modular inverse for the given modulus!");
-  }
 
   x %= mod;
-  if (x < 0) {
+  if (x < 0)
     x += mod;
-  }
 
   return x;
 }
 
 QString decrypt(const cpp_int &ciphertext, const cpp_int &d, const cpp_int &p,
                 const cpp_int &q) {
-  if (p == q) {
+  if (p == q)
     throw std::runtime_error("p and q must be distinct primes!");
-  }
-  if (p <= 1 || q <= 1) {
+
+  if (p <= 1 || q <= 1)
     throw std::runtime_error("p and q must be primes!");
-  }
 
   cpp_int phi = (p - 1) * (q - 1);
 
@@ -116,9 +109,8 @@ QString decrypt(const cpp_int &ciphertext, const cpp_int &d, const cpp_int &p,
   auto exp = d;
   auto cnum = ciphertext;
   while (exp > 0) {
-    if (exp & 1) {
+    if (exp & 1)
       pnum = (pnum * cnum) % n;
-    }
 
     cnum = (cnum * cnum) % n;
     exp >>= 1;
@@ -140,9 +132,8 @@ QString bn_to_qstring(const BIGNUM *bn) {
     return "";
 
   char *s = BN_bn2dec(bn);
-  if (!s) {
+  if (!s)
     throw std::runtime_error("BN_bn2dec failed");
-  }
 
   QString result = QString::fromLatin1(s);
   OPENSSL_free(s);
@@ -152,9 +143,8 @@ QString bn_to_qstring(const BIGNUM *bn) {
 void gen_key(QString &e_str, QString &d_str, QString &n_str, QString &p_str,
              QString &q_str) {
   EVP_PKEY *pkey = EVP_RSA_gen(2048);
-  if (!pkey) {
+  if (!pkey)
     throw std::runtime_error("RSA generation failed");
-  }
 
   BIGNUM *n = nullptr;
   BIGNUM *e = nullptr;

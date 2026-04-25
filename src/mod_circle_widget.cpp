@@ -24,6 +24,12 @@ constexpr int kMaxSampleSize = 500;
 constexpr int kAnimationFps = 60;
 constexpr int kAnimationFramesPerMove = 15;
 
+constexpr double kAnimationTrailSubstepPx = 2.5;
+constexpr double kAnimationTrailMinWidthGlowRatio = 0.0;
+constexpr double kAnimationTrailMaxWidthGlowRatio = 0.30;
+constexpr double kAnimatedPointRadiusPx = 3.0;
+constexpr double kAnimatedPointGlowRadiusPx = 20.0;
+
 constexpr int kMarkCount = 8; // every 45 degrees
 
 QPointF clock_point(const QPointF &center, double radius, long double angle) {
@@ -40,15 +46,13 @@ QString format_big_number(const cpp_int &value) {
     s.erase(s.begin());
   }
 
-  if (s.size() <= 6) {
+  if (s.size() <= 6)
     return negative ? "-" + QString::fromStdString(s)
                     : QString::fromStdString(s);
-  }
 
   QString out;
-  if (negative) {
+  if (negative)
     out += "-";
-  }
 
   out += QChar(s[0]);
 
@@ -89,15 +93,14 @@ ModCircleWidget::ModCircleWidget(QWidget *parent) : QWidget(parent) {
   });
 }
 void ModCircleWidget::set_loading(bool loading) {
-  if (show_spinner == loading) {
+  if (show_spinner == loading)
     return;
-  }
 
   show_spinner = loading;
 
-  if (show_spinner) {
+  if (show_spinner)
     spinner_timer->start();
-  } else {
+  else {
     spinner_timer->stop();
     spinner_angle = 0;
   }
@@ -167,7 +170,7 @@ ModCircleWidget::CircleGeometry ModCircleWidget::circle_geometry() const {
   const double max_radius_y = height() / 2.0 - vertical_label_space;
 
   const double radius = std::max(
-      kMinRadiusPx, std::min({max_radius_x, max_radius_y, side * 0.5}));
+      kMinRadiusPx, std::min({max_radius_x, max_radius_y, side * 0.45}));
 
   const double label_radius = radius + kTickLengthPx + kLabelGapPx;
 
@@ -194,9 +197,9 @@ size_t bit_length(const cpp_int &n) {
 
 cpp_int random_cpp_int_uniform(const cpp_int &max_inclusive,
                                std::mt19937_64 &rng) {
-  if (max_inclusive < 0) {
+  if (max_inclusive < 0)
     throw std::runtime_error("max_inclusive must be non-negative");
-  }
+
   const size_t bits = bit_length(max_inclusive);
 
   std::uniform_int_distribution<uint64_t> dist(0, UINT64_MAX);
@@ -215,30 +218,27 @@ cpp_int random_cpp_int_uniform(const cpp_int &max_inclusive,
     if (rem_bits > 0) {
       uint64_t last = dist(rng);
 
-      if (rem_bits < 64) {
+      if (rem_bits < 64)
         last &= ((uint64_t(1) << rem_bits) - 1);
-      }
 
       x <<= rem_bits;
       x |= cpp_int(last);
     }
 
-    if (x <= max_inclusive) {
+    if (x <= max_inclusive)
       return x;
-    }
   }
 }
 
 QVector<cpp_int> random_unique_points(const cpp_int &long_num, int point_num) {
-  if (long_num <= 0) {
+  if (long_num <= 0)
     throw std::runtime_error("long_num must be positive");
-  }
-  if (point_num < 0) {
+
+  if (point_num < 0)
     throw std::runtime_error("point_num must be non-negative");
-  }
-  if (cpp_int(point_num) > long_num) {
+
+  if (cpp_int(point_num) > long_num)
     throw std::runtime_error("point_num cannot exceed long_num");
-  }
 
   std::random_device rd;
   std::mt19937_64 rng(rd());
@@ -254,9 +254,8 @@ QVector<cpp_int> random_unique_points(const cpp_int &long_num, int point_num) {
 
 QPointF residue_to_point(const cpp_int &a, const cpp_int &mod,
                          const QPointF &center, double radius) {
-  if (mod <= 0) {
+  if (mod <= 0)
     return center;
-  }
 
   constexpr int frac_bits = 32;
   const long double pi = acosl(-1.0L);
@@ -319,9 +318,8 @@ QVector<cpp_int> compute_b(const QVector<cpp_int> &a_vec, const cpp_int &mod,
     int begin = t * chunk;
     int end = std::min(begin + chunk, sample_size);
 
-    if (begin >= end) {
+    if (begin >= end)
       break;
-    }
 
     workers.emplace_back([&, begin, end]() {
       for (int i = begin; i < end; ++i) {
@@ -341,9 +339,8 @@ QVector<cpp_int> compute_b(const QVector<cpp_int> &a_vec, const cpp_int &mod,
 QVector<QLineF> build_circle_lines(const QVector<cpp_int> a_vec,
                                    const QVector<cpp_int> b_vec,
                                    const cpp_int &mod) {
-  if (mod <= 0) {
+  if (mod <= 0)
     return QVector<QLineF>();
-  }
 
   const QPointF center(0.0, 0.0);
   const double radius = 1.0;
@@ -384,6 +381,7 @@ void ModCircleWidget::reset_animation() {
   animation_frame = 0;
 
   show_animated_point = false;
+  animation_trail.clear();
 
   animation_base = 0;
   animation_current_residue = 0;
@@ -399,18 +397,39 @@ void ModCircleWidget::clear_plot() {
   update();
 }
 
+void ModCircleWidget::set_animations_enabled(bool enabled) {
+  if (animations_enabled == enabled)
+    return;
+
+  animations_enabled = enabled;
+
+  if (!animations_enabled) {
+    reset_animation();
+    update();
+  }
+}
+
+void ModCircleWidget::set_animation_trail_max_points(int max_points) {
+  animation_trail_max_points = std::max(1, max_points);
+
+  while (animation_trail.size() > animation_trail_max_points) {
+    animation_trail.pop_front();
+  }
+
+  update();
+}
+
 void ModCircleWidget::animate_point(cpp_int m) {
   reset_animation();
 
-  if (mod <= 0 || exp <= 0) {
+  if (!animations_enabled || mod <= 0 || exp <= 0) {
     update();
     return;
   }
 
   animation_base = m % mod;
-  if (animation_base < 0) {
+  if (animation_base < 0)
     animation_base += mod;
-  }
 
   animation_current_residue = animation_base;
   animation_next_residue = (animation_current_residue * animation_base) % mod;
@@ -420,6 +439,7 @@ void ModCircleWidget::animate_point(cpp_int m) {
 
   animated_point =
       residue_to_point(animation_current_residue, mod, center, radius);
+  append_animated_point_to_trail();
 
   show_animated_point = true;
 
@@ -435,23 +455,24 @@ void ModCircleWidget::advance_animation() {
     return;
   }
 
-  QEasingCurve easing(QEasingCurve::Linear);
+  QEasingCurve easing(QEasingCurve::InOutSine);
   const double progress =
       static_cast<double>(animation_frame + 1) / animation_segment_frames;
   const double eased = easing.valueForProgress(progress);
 
   animated_point = animation_start_point +
                    (animation_end_point - animation_start_point) * eased;
+  append_animated_point_to_trail();
   update();
 
   ++animation_frame;
-  if (animation_frame < animation_segment_frames) {
+  if (animation_frame < animation_segment_frames)
     return;
-  }
 
   animation_frame = 0;
   ++animation_step;
   animated_point = animation_end_point;
+  append_animated_point_to_trail();
 
   if (animation_step >= animation_total_steps) {
     animation_timer->stop();
@@ -475,6 +496,89 @@ void ModCircleWidget::set_animation_segment() {
       residue_to_point(animation_next_residue, mod, center, radius);
 
   animation_segment_frames = kAnimationFramesPerMove;
+}
+
+void ModCircleWidget::append_animated_point_to_trail() {
+  if (!animation_trail.isEmpty()) {
+    const QPointF delta = animation_trail.back() - animated_point;
+
+    if (delta.x() * delta.x() + delta.y() * delta.y() < 0.25)
+      return;
+  }
+
+  animation_trail.push_back(animated_point);
+
+  while (animation_trail.size() > animation_trail_max_points) {
+    animation_trail.pop_front();
+  }
+}
+
+void ModCircleWidget::draw_animated_point(QPainter &p) {
+  p.save();
+
+  if (animation_trail.size() > 1) {
+    const double trail_min_width =
+        kAnimatedPointGlowRadiusPx * kAnimationTrailMinWidthGlowRatio;
+    const double trail_max_width =
+        kAnimatedPointGlowRadiusPx * kAnimationTrailMaxWidthGlowRatio;
+
+    for (int i = 1; i < animation_trail.size(); ++i) {
+      const QPointF start = animation_trail[i - 1];
+      const QPointF end = animation_trail[i];
+      const QPointF delta = end - start;
+      const double distance = std::hypot(static_cast<double>(delta.x()),
+                                         static_cast<double>(delta.y()));
+      const int substeps = std::max(
+          1, static_cast<int>(std::ceil(distance / kAnimationTrailSubstepPx)));
+
+      QPointF segment_start = start;
+      for (int step = 1; step <= substeps; ++step) {
+        const double local_age = static_cast<double>(step) / substeps;
+        const double trail_age =
+            (static_cast<double>(i - 1) + local_age) /
+            static_cast<double>(animation_trail.size() - 1);
+        const double eased_age = trail_age * trail_age;
+        const QPointF segment_end = start + delta * local_age;
+
+        QColor trail_color(
+            80, 255, 120,
+            static_cast<int>(std::clamp(eased_age * 185.0, 0.0, 185.0)));
+
+        QPen pen(trail_color);
+        pen.setWidthF(trail_min_width +
+                      eased_age * (trail_max_width - trail_min_width));
+        pen.setCapStyle(Qt::RoundCap);
+        pen.setJoinStyle(Qt::RoundJoin);
+
+        p.setPen(pen);
+        p.drawLine(segment_start, segment_end);
+        segment_start = segment_end;
+      }
+    }
+  }
+
+  p.setPen(Qt::NoPen);
+
+  QRadialGradient glow(animated_point, kAnimatedPointGlowRadiusPx);
+  glow.setColorAt(0.0, QColor(225, 255, 225, 245));
+  glow.setColorAt(0.16, QColor(70, 255, 110, 235));
+  glow.setColorAt(0.42, QColor(60, 255, 110, 120));
+  glow.setColorAt(0.72, QColor(60, 255, 110, 38));
+  glow.setColorAt(1.0, QColor(60, 255, 110, 0));
+
+  p.setBrush(glow);
+  p.drawEllipse(animated_point, kAnimatedPointGlowRadiusPx,
+                kAnimatedPointGlowRadiusPx);
+
+  QRadialGradient core(animated_point, kAnimatedPointRadiusPx);
+  core.setColorAt(0.0, QColor(255, 255, 255, 255));
+  core.setColorAt(0.55, QColor(160, 255, 175, 245));
+  core.setColorAt(1.0, QColor(40, 255, 85, 220));
+
+  p.setBrush(core);
+  p.drawEllipse(animated_point, kAnimatedPointRadiusPx, kAnimatedPointRadiusPx);
+
+  p.restore();
 }
 
 void ModCircleWidget::paintEvent(QPaintEvent *event) {
@@ -523,22 +627,20 @@ void ModCircleWidget::paintEvent(QPaintEvent *event) {
       constexpr double eps = 0.2;
 
       // horizontal placement
-      if (dx > eps) {
+      if (dx > eps)
         text_rect.moveLeft(anchor.x());
-      } else if (dx < -eps) {
+      else if (dx < -eps)
         text_rect.moveRight(anchor.x());
-      } else {
+      else
         text_rect.moveCenter(QPoint(anchor.x(), text_rect.center().y()));
-      }
 
       // vertical placement
-      if (dy > eps) {
+      if (dy > eps)
         text_rect.moveTop(anchor.y());
-      } else if (dy < -eps) {
+      else if (dy < -eps)
         text_rect.moveBottom(anchor.y());
-      } else {
+      else
         text_rect.moveCenter(QPoint(text_rect.center().x(), anchor.y()));
-      }
 
       p.drawText(text_rect, Qt::AlignCenter, label);
     }
@@ -565,13 +667,9 @@ void ModCircleWidget::paintEvent(QPaintEvent *event) {
     p.drawLine(line);
   }
 
-  if (show_animated_point) {
-    p.setPen(Qt::NoPen);
-    p.setBrush(QColor(255, 140, 0));
-    p.drawEllipse(animated_point, 6.0, 6.0);
-  }
+  if (show_animated_point)
+    draw_animated_point(p);
 
-  if (show_spinner) {
+  if (show_spinner)
     draw_spinner(p, center, radius);
-  }
 }

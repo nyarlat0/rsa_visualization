@@ -4,9 +4,11 @@
 #include "helpers.h"
 #include "mod_circle_widget.h"
 #include "rsa.h"
+#include <QCheckBox>
 #include <QGraphicsOpacityEffect>
 #include <QGridLayout>
 #include <QHBoxLayout>
+#include <QIntValidator>
 #include <QLabel>
 #include <QLineEdit>
 #include <QMainWindow>
@@ -92,7 +94,6 @@ void MainWidget::show_error(const QString &text) {
 
 void MainWidget::gen_keys() {
   QString e_str, d_str, n_str, p_str, q_str;
-  auto message = encrypt_widget->plaintext_edit->toPlainText().trimmed();
   try {
     rsa::gen_key(e_str, d_str, n_str, p_str, q_str);
 
@@ -177,7 +178,7 @@ MainWidget::MainWidget(QWidget *parent) : QMainWindow(parent) {
           });
 
   const int input_spacing = mod_scale(this, -2);
-  const int grid_sapcing = mod_scale(this, 1);
+  const int grid_spacing = mod_scale(this, 1);
 
   auto *e_lay = new QVBoxLayout;
   e_lay->addWidget(encrypt_widget->e_label);
@@ -222,6 +223,50 @@ MainWidget::MainWidget(QWidget *parent) : QMainWindow(parent) {
   r_key_lay->addWidget(decrypt_widget->export_pubkey_button);
   r_key_lay->setSpacing(mod_scale(this, 0));
 
+  auto *animations_check =
+      new QCheckBox("Animations", encrypt_widget->encrypt_circle);
+  animations_check->setChecked(true);
+  animations_check->setToolTip("Animations");
+  animations_check->adjustSize();
+  animations_check->move(mod_scale(this, 0), mod_scale(this, 0));
+  animations_check->raise();
+  connect(animations_check, &QCheckBox::toggled, this, [this](bool enabled) {
+    encrypt_widget->encrypt_circle->set_animations_enabled(enabled);
+    decrypt_widget->decrypt_circle->set_animations_enabled(enabled);
+  });
+
+  auto *trail_length_panel = new QWidget(decrypt_widget->decrypt_circle);
+  auto *trail_length_lay = new QHBoxLayout(trail_length_panel);
+  trail_length_lay->setContentsMargins(0, 0, 0, 0);
+  trail_length_lay->setSpacing(mod_scale(this, -2));
+
+  auto *trail_length_label = new QLabel("Trail length:", trail_length_panel);
+  auto *trail_length_edit = new QLineEdit(trail_length_panel);
+  trail_length_edit->setValidator(
+      new QIntValidator(1, 5000, trail_length_edit));
+  trail_length_edit->setText(
+      QString::number(ModCircleWidget::kDefaultAnimationTrailMaxPoints));
+  trail_length_edit->setFixedWidth(rem(decrypt_widget->decrypt_circle, 3));
+
+  trail_length_lay->addWidget(trail_length_label);
+  trail_length_lay->addWidget(trail_length_edit);
+  trail_length_panel->adjustSize();
+  trail_length_panel->move(mod_scale(this, 0), mod_scale(this, 0));
+  trail_length_panel->raise();
+
+  connect(trail_length_edit, &QLineEdit::textChanged, this,
+          [this](const QString &text) {
+            bool ok = false;
+            const int max_points = text.toInt(&ok);
+            if (!ok)
+              return;
+
+            encrypt_widget->encrypt_circle->set_animation_trail_max_points(
+                max_points);
+            decrypt_widget->decrypt_circle->set_animation_trail_max_points(
+                max_points);
+          });
+
   auto *l_circle_lay = new QVBoxLayout;
   l_circle_lay->addWidget(encrypt_widget->encrypt_circle);
 
@@ -246,7 +291,7 @@ MainWidget::MainWidget(QWidget *parent) : QMainWindow(parent) {
   auto *central = new QWidget(this);
   auto *grid = new QGridLayout(central);
 
-  grid->setSpacing(grid_sapcing);
+  grid->setSpacing(grid_spacing);
 
   grid->addLayout(l_key_lay, 0, 0);
   grid->addLayout(r_key_lay, 0, 1);
