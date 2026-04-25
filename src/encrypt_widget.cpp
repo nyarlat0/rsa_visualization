@@ -18,11 +18,8 @@
 
 using boost::multiprecision::cpp_int;
 
-QString EncryptWidget::encrypt() {
-  auto e_in = e_edit->text().trimmed();
-  auto n_in = n_edit->toPlainText().trimmed();
-  auto ptxt = plaintext_edit->toPlainText().trimmed();
-
+bool EncryptWidget::validate_fields(const QString &e_in, const QString &n_in,
+                                    const QString &ptxt) {
   const auto error_style =
       QString("border: 2px solid red; border-radius: %1px;")
           .arg(mod_scale(this, -2));
@@ -30,23 +27,56 @@ QString EncryptWidget::encrypt() {
   if (e_in.isEmpty() || !validate_num(e_in)) {
     e_edit->setStyleSheet(error_style);
     emit error_signal("Please enter e!");
-    return "";
+    return false;
   }
   e_edit->setStyleSheet("");
 
   if (n_in.isEmpty() || !validate_num(n_in)) {
     n_edit->setStyleSheet(error_style);
     emit error_signal("Please enter n as single number!");
-    return "";
+    return false;
   }
   n_edit->setStyleSheet("");
 
   if (ptxt.isEmpty()) {
     plaintext_edit->viewport()->setStyleSheet(error_style);
     emit error_signal("Please enter plain text!");
-    return "";
+    return false;
   }
   plaintext_edit->setStyleSheet("");
+
+  return true;
+}
+
+bool EncryptWidget::validate_fields(const QString &e_in, const QString &n_in) {
+  const auto error_style =
+      QString("border: 2px solid red; border-radius: %1px;")
+          .arg(mod_scale(this, -2));
+
+  if (e_in.isEmpty() || !validate_num(e_in)) {
+    e_edit->setStyleSheet(error_style);
+    emit error_signal("Please enter e!");
+    return false;
+  }
+  e_edit->setStyleSheet("");
+
+  if (n_in.isEmpty() || !validate_num(n_in)) {
+    n_edit->setStyleSheet(error_style);
+    emit error_signal("Please enter n as single number!");
+    return false;
+  }
+  n_edit->setStyleSheet("");
+
+  return true;
+}
+
+QString EncryptWidget::encrypt() {
+  auto e_in = e_edit->text().trimmed();
+  auto n_in = n_edit->toPlainText().trimmed();
+  auto ptxt = plaintext_edit->toPlainText().trimmed();
+
+  if (!validate_fields(e_in, n_in, ptxt))
+    return "";
 
   auto e = cpp_int(e_in.toStdString());
   auto n = cpp_int(n_in.toStdString());
@@ -64,8 +94,20 @@ QString EncryptWidget::encrypt() {
 }
 
 void EncryptWidget::shared_encrypt() {
+  const auto e_in = e_edit->text().trimmed();
+  const auto n_in = n_edit->toPlainText().trimmed();
+  const auto ptxt = plaintext_edit->toPlainText().trimmed();
+
+  if (!validate_fields(e_in, n_in, ptxt))
+    return;
+
+  auto e = cpp_int(e_in.toStdString());
+  auto n = cpp_int(n_in.toStdString());
+
   auto ctxt = encrypt();
+
   if (!ctxt.isEmpty()) {
+    encrypt_circle->animate_point(rsa::encode_message(ptxt));
     emit shared_result_signal(ctxt);
   }
 }
@@ -103,8 +145,20 @@ void EncryptWidget::import_pubkey() {
 }
 
 void EncryptWidget::export_encrypted() {
+  const auto e_in = e_edit->text().trimmed();
+  const auto n_in = n_edit->toPlainText().trimmed();
+  const auto ptxt = plaintext_edit->toPlainText().trimmed();
+
+  if (!validate_fields(e_in, n_in, ptxt))
+    return;
+
+  auto e = cpp_int(e_in.toStdString());
+  auto n = cpp_int(n_in.toStdString());
+
   auto ctxt = encrypt();
+
   if (!ctxt.isEmpty()) {
+    encrypt_circle->animate_point(rsa::encode_message(ptxt));
     QApplication::clipboard()->setText(ctxt);
   }
 }
@@ -113,26 +167,14 @@ void EncryptWidget::update_circle() {
   auto e_in = e_edit->text().trimmed();
   auto n_in = n_edit->toPlainText().trimmed();
 
-  const auto error_style =
-      QString("border: 2px solid red; border-radius: %1px;")
-          .arg(mod_scale(this, -2));
-
-  if (e_in.isEmpty() || !validate_num(e_in)) {
-    e_edit->setStyleSheet(error_style);
-    emit error_signal("Please enter e!");
+  if (!validate_fields(e_in, n_in))
     return;
-  }
-  e_edit->setStyleSheet("");
-
-  if (n_in.isEmpty() || !validate_num(n_in)) {
-    n_edit->setStyleSheet(error_style);
-    emit error_signal("Please enter n as single number!");
-    return;
-  }
-  n_edit->setStyleSheet("");
 
   auto e = cpp_int(e_in.toStdString());
   auto n = cpp_int(n_in.toStdString());
+
+  encrypt_circle->set_params(n, e);
+  encrypt_circle->set_loading(true);
 
   auto future = QtConcurrent::run([n, e] {
     auto a_vec = build_sample(n);
@@ -150,7 +192,10 @@ EncryptWidget::EncryptWidget(QWidget *parent) : QWidget(parent) {
 
   circle_watcher = new QFutureWatcher<QVector<QLineF>>(this);
   connect(circle_watcher, &QFutureWatcher<QVector<QLineF>>::finished, this,
-          [this]() { encrypt_circle->set_lines(circle_watcher->result()); });
+          [this]() {
+            encrypt_circle->set_loading(false);
+            encrypt_circle->set_lines(circle_watcher->result());
+          });
 
   auto *num_validator =
       new QRegularExpressionValidator(QRegularExpression("[0-9]+"), this);

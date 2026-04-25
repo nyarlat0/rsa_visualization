@@ -2,6 +2,8 @@
 #include "rsa.h"
 #include <thread>
 
+#include <QChronoTimer>
+#include <QEasingCurve>
 #include <QPainter>
 #include <QPen>
 #include <QPointF>
@@ -11,8 +13,169 @@
 #include <cmath>
 #include <random>
 
+namespace {
+
+constexpr double kMinRadiusPx = 20.0;
+constexpr double kTickLengthPx = 8.0;
+constexpr double kLabelGapPx = 2.0;
+
+constexpr int kMaxSampleSize = 500;
+
+constexpr int kAnimationFps = 60;
+constexpr int kAnimationFramesPerMove = 15;
+
+constexpr int kMarkCount = 8; // every 45 degrees
+
+QPointF clock_point(const QPointF &center, double radius, long double angle) {
+  return QPointF(center.x() + radius * std::cos(static_cast<double>(angle)),
+                 center.y() - radius * std::sin(static_cast<double>(angle)));
+}
+
+QString format_big_number(const cpp_int &value) {
+  std::string s = value.str();
+
+  bool negative = false;
+  if (!s.empty() && s[0] == '-') {
+    negative = true;
+    s.erase(s.begin());
+  }
+
+  if (s.size() <= 6) {
+    return negative ? "-" + QString::fromStdString(s)
+                    : QString::fromStdString(s);
+  }
+
+  QString out;
+  if (negative) {
+    out += "-";
+  }
+
+  out += QChar(s[0]);
+
+  if (s.size() > 1) {
+    out += ".";
+    const std::size_t frac_digits = std::min<std::size_t>(1, s.size() - 1);
+    for (std::size_t i = 1; i <= frac_digits; ++i) {
+      out += QChar(s[i]);
+    }
+  }
+
+  out += " * 10^";
+  out += QString::number(static_cast<int>(s.size() - 1));
+
+  return out;
+}
+
+} // namespace
+
 ModCircleWidget::ModCircleWidget(QWidget *parent) : QWidget(parent) {
   setMinimumSize(400, 400);
+
+  animation_timer = new QChronoTimer(this);
+  animation_timer->setTimerType(Qt::PreciseTimer);
+  animation_timer->setInterval(
+      std::chrono::nanoseconds(1'000'000'000 / kAnimationFps));
+
+  connect(animation_timer, &QChronoTimer::timeout, this,
+          [this]() { advance_animation(); });
+
+  spinner_timer = new QChronoTimer(this);
+  spinner_timer->setTimerType(Qt::PreciseTimer);
+  spinner_timer->setInterval(
+      std::chrono::nanoseconds(1'000'000'000 / kAnimationFps));
+  connect(spinner_timer, &QChronoTimer::timeout, this, [this]() {
+    spinner_angle = (spinner_angle + 6) % 360;
+    update();
+  });
+}
+void ModCircleWidget::set_loading(bool loading) {
+  if (show_spinner == loading) {
+    return;
+  }
+
+  show_spinner = loading;
+
+  if (show_spinner) {
+    spinner_timer->start();
+  } else {
+    spinner_timer->stop();
+    spinner_angle = 0;
+  }
+
+  update();
+}
+
+void ModCircleWidget::draw_spinner(QPainter &p, const QPointF &center,
+                                   double radius) {
+  p.save();
+
+  const double spinner_radius = radius * 0.22;
+  const QRectF spinner_rect(center.x() - spinner_radius,
+                            center.y() - spinner_radius, spinner_radius * 2.0,
+                            spinner_radius * 2.0);
+
+  QPen pen(QColor(255, 80, 200));
+  pen.setWidthF(std::max(3.0, radius * 0.025));
+  pen.setCapStyle(Qt::RoundCap);
+
+  p.setPen(pen);
+  p.setBrush(Qt::NoBrush);
+
+  // Qt drawArc angles are in 1/16 degrees.
+  // Positive angles go counterclockwise.
+  const int start_angle = spinner_angle * 16;
+  const int span_angle = 270 * 16;
+
+  p.drawArc(spinner_rect, start_angle, span_angle);
+
+  p.restore();
+}
+
+QFont ModCircleWidget::label_font() const {
+  QFont f = font();
+  f.setPointSizeF(f.pointSizeF() * 0.8);
+  return f;
+}
+
+ModCircleWidget::CircleGeometry ModCircleWidget::circle_geometry() const {
+  const QFontMetrics fm(label_font());
+  const int side = std::min(width(), height());
+  const QPointF center(width() / 2.0, height() / 2.0);
+
+  int max_label_w = 0;
+  int max_label_h = 0;
+
+  if (mod > 0) {
+    for (int k = 0; k < kMarkCount; ++k) {
+      const cpp_int mark_value = (mod * k) / kMarkCount;
+      const QString label = format_big_number(mark_value);
+
+      QRect r = fm.boundingRect(label);
+      r.adjust(-3, -2, 3, 2);
+
+      max_label_w = std::max(max_label_w, r.width());
+      max_label_h = std::max(max_label_h, r.height());
+    }
+  }
+
+  const double horizontal_label_space =
+      max_label_w + kTickLengthPx + kLabelGapPx;
+
+  const double vertical_label_space = max_label_h + kTickLengthPx + kLabelGapPx;
+
+  const double max_radius_x = width() / 2.0 - horizontal_label_space;
+  const double max_radius_y = height() / 2.0 - vertical_label_space;
+
+  const double radius = std::max(
+      kMinRadiusPx, std::min({max_radius_x, max_radius_y, side * 0.5}));
+
+  const double label_radius = radius + kTickLengthPx + kLabelGapPx;
+
+  return {
+      .center = center,
+      .radius = radius,
+      .label_radius = label_radius,
+  };
 }
 
 size_t bit_length(const cpp_int &n) {
@@ -104,7 +267,7 @@ QPointF residue_to_point(const cpp_int &a, const cpp_int &mod,
   long double frac = static_cast<long double>(q) /
                      static_cast<long double>(uint64_t(1) << frac_bits);
 
-  long double angle = 2.0L * pi * frac;
+  long double angle = pi / 2.0L - 2.0L * pi * frac;
 
   double x = center.x() + radius * std::cos(static_cast<double>(angle));
   double y = center.y() - radius * std::sin(static_cast<double>(angle));
@@ -113,11 +276,10 @@ QPointF residue_to_point(const cpp_int &a, const cpp_int &mod,
 }
 
 QVector<cpp_int> build_sample(const cpp_int &mod) {
-  constexpr int max_sample_size = 500;
 
   QVector<cpp_int> sample_vec;
 
-  if (mod <= max_sample_size) {
+  if (mod <= kMaxSampleSize) {
     int sample_size = static_cast<int>(mod);
     sample_vec.reserve(sample_size);
 
@@ -125,7 +287,7 @@ QVector<cpp_int> build_sample(const cpp_int &mod) {
       sample_vec.push_back(i);
     }
   } else {
-    sample_vec = random_unique_points(mod, max_sample_size);
+    sample_vec = random_unique_points(mod, kMaxSampleSize);
   }
 
   return sample_vec;
@@ -208,9 +370,111 @@ void ModCircleWidget::set_lines(const QVector<QLineF> &lines) {
   update();
 }
 
+void ModCircleWidget::set_params(cpp_int new_mod, cpp_int new_exp) {
+  mod = new_mod;
+  exp = new_exp;
+  reset_animation();
+  update();
+}
+
+void ModCircleWidget::reset_animation() {
+  animation_timer->stop();
+
+  animation_segment_frames = kAnimationFramesPerMove;
+  animation_frame = 0;
+
+  show_animated_point = false;
+
+  animation_base = 0;
+  animation_current_residue = 0;
+  animation_next_residue = 0;
+
+  animation_step = 0;
+  animation_total_steps = 0;
+}
+
 void ModCircleWidget::clear_plot() {
   cached_lines.clear();
+  reset_animation();
   update();
+}
+
+void ModCircleWidget::animate_point(cpp_int m) {
+  reset_animation();
+
+  if (mod <= 0 || exp <= 0) {
+    update();
+    return;
+  }
+
+  animation_base = m % mod;
+  if (animation_base < 0) {
+    animation_base += mod;
+  }
+
+  animation_current_residue = animation_base;
+  animation_next_residue = (animation_current_residue * animation_base) % mod;
+  animation_total_steps = exp;
+
+  const auto [center, radius, _label_radius] = circle_geometry();
+
+  animated_point =
+      residue_to_point(animation_current_residue, mod, center, radius);
+
+  show_animated_point = true;
+
+  set_animation_segment();
+  animation_timer->start();
+
+  update();
+}
+
+void ModCircleWidget::advance_animation() {
+  if (animation_step >= animation_total_steps) {
+    animation_timer->stop();
+    return;
+  }
+
+  QEasingCurve easing(QEasingCurve::Linear);
+  const double progress =
+      static_cast<double>(animation_frame + 1) / animation_segment_frames;
+  const double eased = easing.valueForProgress(progress);
+
+  animated_point = animation_start_point +
+                   (animation_end_point - animation_start_point) * eased;
+  update();
+
+  ++animation_frame;
+  if (animation_frame < animation_segment_frames) {
+    return;
+  }
+
+  animation_frame = 0;
+  ++animation_step;
+  animated_point = animation_end_point;
+
+  if (animation_step >= animation_total_steps) {
+    animation_timer->stop();
+    update();
+    return;
+  }
+
+  animation_current_residue = animation_next_residue;
+  animation_next_residue = (animation_current_residue * animation_base) % mod;
+  set_animation_segment();
+}
+
+void ModCircleWidget::set_animation_segment() {
+
+  const auto [center, radius, _label_radius] = circle_geometry();
+
+  animation_start_point =
+      residue_to_point(animation_current_residue, mod, center, radius);
+
+  animation_end_point =
+      residue_to_point(animation_next_residue, mod, center, radius);
+
+  animation_segment_frames = kAnimationFramesPerMove;
 }
 
 void ModCircleWidget::paintEvent(QPaintEvent *event) {
@@ -219,12 +483,66 @@ void ModCircleWidget::paintEvent(QPaintEvent *event) {
   QPainter p(this);
   p.setRenderHint(QPainter::Antialiasing, true);
 
-  const int side = std::min(width(), height());
-  const QPointF center(width() / 2.0, height() / 2.0);
-  const double radius = side * 0.45;
+  const auto [center, radius, label_radius] = circle_geometry();
+  const double tick_len = kTickLengthPx;
 
   // Outer circle
   p.drawEllipse(center, radius, radius);
+
+  // Outer ticks + labels every 45 degrees
+  if (mod > 0) {
+    const long double pi = acosl(-1.0L);
+
+    p.setFont(label_font());
+
+    QFontMetrics fm(p.font());
+
+    for (int k = 0; k < kMarkCount; ++k) {
+      // top, then clockwise every 45 degrees
+      long double angle = pi / 2.0L - static_cast<long double>(k) * (pi / 4.0L);
+
+      QPointF tick_start = clock_point(center, radius, angle);
+      QPointF tick_end = clock_point(center, radius + tick_len, angle);
+
+      p.drawLine(tick_start, tick_end);
+
+      // Value at this angular mark: 0, mod/8, 2mod/8, ..., 7mod/8
+      cpp_int mark_value = (mod * k) / 8;
+      QString label = format_big_number(mark_value);
+
+      QPointF label_center = clock_point(center, label_radius, angle);
+
+      QRect text_rect = fm.boundingRect(label);
+      text_rect.adjust(-3, -2, 3, 2);
+
+      const QPoint anchor = label_center.toPoint();
+
+      const double dx = std::cos(static_cast<double>(angle));
+      const double dy = -std::sin(static_cast<double>(angle)); // screen y
+
+      constexpr double eps = 0.2;
+
+      // horizontal placement
+      if (dx > eps) {
+        text_rect.moveLeft(anchor.x());
+      } else if (dx < -eps) {
+        text_rect.moveRight(anchor.x());
+      } else {
+        text_rect.moveCenter(QPoint(anchor.x(), text_rect.center().y()));
+      }
+
+      // vertical placement
+      if (dy > eps) {
+        text_rect.moveTop(anchor.y());
+      } else if (dy < -eps) {
+        text_rect.moveBottom(anchor.y());
+      } else {
+        text_rect.moveCenter(QPoint(text_rect.center().x(), anchor.y()));
+      }
+
+      p.drawText(text_rect, Qt::AlignCenter, label);
+    }
+  }
 
   // Chords
   for (const QLineF &cline : cached_lines) {
@@ -232,6 +550,28 @@ void ModCircleWidget::paintEvent(QPaintEvent *event) {
     QPointF b = cline.p2();
 
     auto line = QLineF(center + a * radius, center + b * radius);
+
+    QLinearGradient grad(line.p1(), line.p2());
+    grad.setColorAt(0.0, Qt::red);
+    grad.setColorAt(0.15, Qt::red);
+
+    grad.setColorAt(0.5, Qt::green);
+
+    grad.setColorAt(0.85, Qt::blue);
+    grad.setColorAt(1.0, Qt::blue);
+
+    QPen pen(QBrush(grad), 1.0);
+    p.setPen(pen);
     p.drawLine(line);
+  }
+
+  if (show_animated_point) {
+    p.setPen(Qt::NoPen);
+    p.setBrush(QColor(255, 140, 0));
+    p.drawEllipse(animated_point, 6.0, 6.0);
+  }
+
+  if (show_spinner) {
+    draw_spinner(p, center, radius);
   }
 }

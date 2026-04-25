@@ -113,6 +113,12 @@ void MainWidget::gen_keys() {
     auto e = cpp_int(e_str.toStdString());
     auto d = cpp_int(d_str.toStdString());
 
+    encrypt_widget->encrypt_circle->set_params(n, e);
+    decrypt_widget->decrypt_circle->set_params(n, d);
+
+    encrypt_widget->encrypt_circle->set_loading(true);
+    decrypt_widget->decrypt_circle->set_loading(true);
+
     auto future = QtConcurrent::run([n, e, d] {
       auto enc_a_vec = build_sample(n);
       auto enc_b_vec = compute_b(enc_a_vec, n, e);
@@ -160,6 +166,9 @@ MainWidget::MainWidget(QWidget *parent) : QMainWindow(parent) {
 
   connect(circles_watcher, &QFutureWatcher<CirclesLines>::finished, this,
           [this]() {
+            encrypt_widget->encrypt_circle->set_loading(false);
+            decrypt_widget->decrypt_circle->set_loading(false);
+
             encrypt_widget->encrypt_circle->set_lines(
                 circles_watcher->result().enc_lines);
 

@@ -17,12 +17,8 @@
 
 using boost::multiprecision::cpp_int;
 
-QString DecryptWidget::decrypt() {
-  auto d_in = d_edit->toPlainText().trimmed();
-  auto p_in = p_edit->toPlainText().trimmed();
-  auto q_in = q_edit->toPlainText().trimmed();
-  auto ctxt = ciphertext_edit->toPlainText().trimmed();
-
+bool DecryptWidget::validate_fields(const QString &d_in, const QString &p_in,
+                                    const QString &q_in, const QString &ctxt) {
   const auto error_style =
       QString("border: 2px solid red; border-radius: %1px;")
           .arg(mod_scale(this, -2));
@@ -30,30 +26,71 @@ QString DecryptWidget::decrypt() {
   if (d_in.isEmpty() || !validate_num(d_in)) {
     d_edit->setStyleSheet(error_style);
     emit error_signal("Please enter d as single number!");
-    return "";
+    return false;
   }
   d_edit->setStyleSheet("");
 
   if (p_in.isEmpty() || !validate_num(p_in)) {
     p_edit->setStyleSheet(error_style);
     emit error_signal("Please enter p as single number!");
-    return "";
+    return false;
   }
   p_edit->setStyleSheet("");
 
   if (q_in.isEmpty() || !validate_num(q_in)) {
     q_edit->setStyleSheet(error_style);
     emit error_signal("Please enter q as single number!");
-    return "";
+    return false;
   }
   q_edit->setStyleSheet("");
 
   if (ctxt.isEmpty() || !validate_num(ctxt)) {
     ciphertext_edit->viewport()->setStyleSheet(error_style);
     emit error_signal("Please enter cipher text as single number!");
-    return "";
+    return false;
   }
   ciphertext_edit->setStyleSheet("");
+
+  return true;
+}
+bool DecryptWidget::validate_fields(const QString &d_in, const QString &p_in,
+                                    const QString &q_in) {
+  const auto error_style =
+      QString("border: 2px solid red; border-radius: %1px;")
+          .arg(mod_scale(this, -2));
+
+  if (d_in.isEmpty() || !validate_num(d_in)) {
+    d_edit->setStyleSheet(error_style);
+    emit error_signal("Please enter d as single number!");
+    return false;
+  }
+  d_edit->setStyleSheet("");
+
+  if (p_in.isEmpty() || !validate_num(p_in)) {
+    p_edit->setStyleSheet(error_style);
+    emit error_signal("Please enter p as single number!");
+    return false;
+  }
+  p_edit->setStyleSheet("");
+
+  if (q_in.isEmpty() || !validate_num(q_in)) {
+    q_edit->setStyleSheet(error_style);
+    emit error_signal("Please enter q as single number!");
+    return false;
+  }
+  q_edit->setStyleSheet("");
+
+  return true;
+}
+
+QString DecryptWidget::decrypt() {
+  auto d_in = d_edit->toPlainText().trimmed();
+  auto p_in = p_edit->toPlainText().trimmed();
+  auto q_in = q_edit->toPlainText().trimmed();
+  auto ctxt = ciphertext_edit->toPlainText().trimmed();
+
+  if (!validate_fields(d_in, p_in, q_in, ctxt))
+    return "";
 
   auto d = cpp_int(d_in.toStdString());
   auto p = cpp_int(p_in.toStdString());
@@ -73,8 +110,23 @@ QString DecryptWidget::decrypt() {
 }
 
 void DecryptWidget::shared_decrypt() {
+  const auto d_in = d_edit->toPlainText().trimmed();
+  const auto p_in = p_edit->toPlainText().trimmed();
+  const auto q_in = q_edit->toPlainText().trimmed();
+  const auto ctxt = ciphertext_edit->toPlainText().trimmed();
+
+  if (!validate_fields(d_in, p_in, q_in, ctxt))
+    return;
+
+  auto d = cpp_int(d_in.toStdString());
+  auto p = cpp_int(p_in.toStdString());
+  auto q = cpp_int(q_in.toStdString());
+  auto cnum = cpp_int(ctxt.toStdString());
+
   auto ptxt = decrypt();
+
   if (!ptxt.isEmpty()) {
+    decrypt_circle->animate_point(cnum);
     emit shared_result_signal(ptxt);
   }
 }
@@ -84,30 +136,8 @@ void DecryptWidget::export_pubkey() {
   auto p_in = p_edit->toPlainText().trimmed();
   auto q_in = q_edit->toPlainText().trimmed();
 
-  const auto error_style =
-      QString("border: 2px solid red; border-radius: %1px;")
-          .arg(mod_scale(this, -2));
-
-  if (d_in.isEmpty() || !validate_num(d_in)) {
-    d_edit->setStyleSheet(error_style);
-    emit error_signal("Please enter d as single number!");
+  if (!validate_fields(d_in, p_in, q_in))
     return;
-  }
-  d_edit->setStyleSheet("");
-
-  if (p_in.isEmpty() || !validate_num(p_in)) {
-    p_edit->setStyleSheet(error_style);
-    emit error_signal("Please enter p as single number!");
-    return;
-  }
-  p_edit->setStyleSheet("");
-
-  if (q_in.isEmpty() || !validate_num(q_in)) {
-    q_edit->setStyleSheet(error_style);
-    emit error_signal("Please enter q as single number!");
-    return;
-  }
-  q_edit->setStyleSheet("");
 
   auto d = cpp_int(d_in.toStdString());
   auto p = cpp_int(p_in.toStdString());
@@ -126,36 +156,16 @@ void DecryptWidget::update_circle() {
   auto p_in = p_edit->toPlainText().trimmed();
   auto q_in = q_edit->toPlainText().trimmed();
 
-  const auto error_style =
-      QString("border: 2px solid red; border-radius: %1px;")
-          .arg(mod_scale(this, -2));
-
-  if (d_in.isEmpty() || !validate_num(d_in)) {
-    d_edit->setStyleSheet(error_style);
-    emit error_signal("Please enter d as single number!");
+  if (!validate_fields(d_in, p_in, q_in))
     return;
-  }
-  d_edit->setStyleSheet("");
-
-  if (p_in.isEmpty() || !validate_num(p_in)) {
-    p_edit->setStyleSheet(error_style);
-    emit error_signal("Please enter p as single number!");
-    return;
-  }
-  p_edit->setStyleSheet("");
-
-  if (q_in.isEmpty() || !validate_num(q_in)) {
-    q_edit->setStyleSheet(error_style);
-    emit error_signal("Please enter q as single number!");
-    return;
-  }
-  q_edit->setStyleSheet("");
 
   auto d = cpp_int(d_in.toStdString());
   auto p = cpp_int(p_in.toStdString());
   auto q = cpp_int(q_in.toStdString());
 
   cpp_int n = p * q;
+  decrypt_circle->set_params(n, d);
+  decrypt_circle->set_loading(true);
 
   auto future = QtConcurrent::run([n, d] {
     auto a_vec = build_sample(n);
@@ -173,7 +183,10 @@ DecryptWidget::DecryptWidget(QWidget *parent) : QWidget(parent) {
 
   circle_watcher = new QFutureWatcher<QVector<QLineF>>(this);
   connect(circle_watcher, &QFutureWatcher<QVector<QLineF>>::finished, this,
-          [this]() { decrypt_circle->set_lines(circle_watcher->result()); });
+          [this]() {
+            decrypt_circle->set_loading(false);
+            decrypt_circle->set_lines(circle_watcher->result());
+          });
 
   auto *num_validator =
       new QRegularExpressionValidator(QRegularExpression("[0-9]+"), this);

@@ -7,6 +7,8 @@ namespace rsa {
 
 using boost::multiprecision::cpp_int;
 
+cpp_int encode_message(const QString &m);
+
 cpp_int encrypt(const QString &plaintext, const cpp_int &e, const cpp_int &n);
 
 QString decrypt(const cpp_int &ciphertext, const cpp_int &d, const cpp_int &p,

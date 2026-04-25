@@ -35,6 +35,10 @@ public:
 private:
   QFutureWatcher<QVector<QLineF>> *circle_watcher = nullptr;
 
+  bool validate_fields(const QString &e_in, const QString &n_in,
+                       const QString &ptxt);
+  bool validate_fields(const QString &e_in, const QString &n_in);
+
   QString encrypt();
   void import_pubkey();
   void export_encrypted();
