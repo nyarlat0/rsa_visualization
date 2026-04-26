@@ -73,15 +73,15 @@ jobs:
           cp assets/rsa_visualization.png \
             AppDir/usr/share/icons/hicolor/256x256/apps/rsa_visualization.png
 
-            - name: Download linuxdeploy and Qt plugin
-              run: |
-                wget -O linuxdeploy-x86_64.AppImage \
-                  https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-x86_64.AppImage
+      - name: Download linuxdeploy and Qt plugin
+        run: |
+          wget -O linuxdeploy-x86_64.AppImage \
+            https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-x86_64.AppImage
 
-                wget -O linuxdeploy-plugin-qt-x86_64.AppImage \
-                  https://github.com/linuxdeploy/linuxdeploy-plugin-qt/releases/download/continuous/linuxdeploy-plugin-qt-x86_64.AppImage
+          wget -O linuxdeploy-plugin-qt-x86_64.AppImage \
+            https://github.com/linuxdeploy/linuxdeploy-plugin-qt/releases/download/continuous/linuxdeploy-plugin-qt-x86_64.AppImage
 
-                chmod +x linuxdeploy-x86_64.AppImage linuxdeploy-plugin-qt-x86_64.AppImage
+          chmod +x linuxdeploy-x86_64.AppImage linuxdeploy-plugin-qt-x86_64.AppImage
 
       - name: Build AppImage
         env:
