@@ -147,7 +147,9 @@ void DecryptWidget::export_pubkey() {
   cpp_int lambda = rsa::lcm(p - 1, q - 1);
   auto e = rsa::mod_inverse(d, lambda);
 
-  auto export_txt = QString("e=%1\nn=%2").arg(e.str(), n.str());
+  auto export_txt = QString("e=%1\nn=%2")
+                        .arg(QString::fromStdString(e.str()))
+                        .arg(QString::fromStdString(n.str()));
   QApplication::clipboard()->setText(export_txt);
 }
 
