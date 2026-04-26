@@ -8,24 +8,32 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 find_package(Qt6 REQUIRED COMPONENTS Widgets Concurrent)
-qt_standard_project_setup()
-
 find_package(OpenSSL REQUIRED)
+find_package(Boost REQUIRED)
+
+qt_standard_project_setup()
 
 qt_add_executable(${PROJECT_NAME}
     src/main.cpp
     src/main_widget.cpp
     src/encrypt_widget.cpp
     src/decrypt_widget.cpp
+    src/mod_circle_widget.cpp
     src/rsa.cpp
     src/helpers.cpp
     include/main_widget.h
     include/encrypt_widget.h
     include/decrypt_widget.h
-    src/mod_circle_widget.cpp
+    include/mod_circle_widget.h
+    include/rsa.h
+    include/helpers.h
 )
 
-target_include_directories(${PROJECT_NAME} PRIVATE include)
+target_include_directories(${PROJECT_NAME}
+  PRIVATE
+    include
+    ${Boost_INCLUDE_DIRS}
+)
 target_link_libraries(${PROJECT_NAME}
   PRIVATE
     Qt6::Widgets

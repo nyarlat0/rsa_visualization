@@ -15,7 +15,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v4
 
       - name: Install system dependencies
         run: |
@@ -24,6 +24,7 @@ jobs:
             build-essential \
             cmake \
             ninja-build \
+            libboost-dev \
             libgl1-mesa-dev \
             libxkbcommon-x11-0 \
             libxcb-cursor0 \
@@ -35,7 +36,8 @@ jobs:
             libxcb-xinput0 \
             libssl-dev \
             patchelf \
-            wget
+            wget \
+            imagemagick
 
       - name: Install Qt
         uses: jurplel/install-qt-action@v4
@@ -50,7 +52,7 @@ jobs:
             -DCMAKE_INSTALL_PREFIX=AppDir/usr
 
       - name: Build
-        run: cmake --build build --config Release
+        run: cmake --build build --config Release --parallel
 
       - name: Install into AppDir
         run: cmake --install build --config Release
@@ -69,21 +71,28 @@ jobs:
           Categories=Education;Science;
           EOF
 
-          # temporary placeholder icon; replace later with real icon
-          convert -size 256x256 xc:transparent AppDir/usr/share/icons/hicolor/256x256/apps/rsa_visualization.png || true
+          magick -size 256x256 xc:"#2e2e2e" \
+            -fill "#ff55cc" \
+            -gravity center \
+            -pointsize 72 \
+            -annotate 0 "RSA" \
+            AppDir/usr/share/icons/hicolor/256x256/apps/rsa_visualization.png
 
       - name: Download linuxdeploy and Qt plugin
         run: |
           wget -O linuxdeploy-x86_64.AppImage \
             https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-x86_64.AppImage
+
           wget -O linuxdeploy-plugin-qt-x86_64.AppImage \
             https://github.com/linuxdeploy/linuxdeploy-plugin-qt/releases/download/continuous/linuxdeploy-plugin-qt-x86_64.AppImage
 
           chmod +x linuxdeploy-x86_64.AppImage linuxdeploy-plugin-qt-x86_64.AppImage
 
       - name: Build AppImage
+        env:
+          APPIMAGE_EXTRACT_AND_RUN: "1"
         run: |
-          export QMAKE="${Qt6_DIR}/../../../bin/qmake"
+          export QMAKE="$(which qmake)"
           ./linuxdeploy-x86_64.AppImage \
             --appdir AppDir \
             --plugin qt \
@@ -91,8 +100,7 @@ jobs:
 
       - name: Rename Linux artifact
         run: |
-          mv RSA_Visualization*.AppImage rsa_visualization-linux-x86_64.AppImage || \
-          mv *.AppImage rsa_visualization-linux-x86_64.AppImage
+          mv ./*.AppImage rsa_visualization-linux-x86_64.AppImage
 
       - name: Upload Linux artifact
         uses: actions/upload-artifact@v4
@@ -106,7 +114,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v4
 
       - name: Install Qt
         uses: jurplel/install-qt-action@v4
@@ -114,20 +122,36 @@ jobs:
           version: "6.7.3"
           arch: "win64_msvc2022_64"
 
-      - name: Configure
+      - name: Install Boost and OpenSSL with vcpkg
+        shell: pwsh
         run: |
-          cmake -S . -B build -G "Visual Studio 17 2022" -A x64 -DCMAKE_BUILD_TYPE=Release
+          & "$env:VCPKG_INSTALLATION_ROOT\vcpkg.exe" install boost-multiprecision openssl --triplet x64-windows
+
+      - name: Configure
+        shell: pwsh
+        run: |
+          cmake -S . -B build `
+            -G "Visual Studio 17 2022" `
+            -A x64 `
+            -DCMAKE_BUILD_TYPE=Release `
+            -DCMAKE_TOOLCHAIN_FILE="$env:VCPKG_INSTALLATION_ROOT/scripts/buildsystems/vcpkg.cmake"
 
       - name: Build
+        shell: pwsh
         run: |
-          cmake --build build --config Release
+          cmake --build build --config Release --parallel
 
       - name: Deploy Qt runtime
         shell: pwsh
         run: |
-          mkdir package
-          copy build\Release\rsa_visualization.exe package\
-          windeployqt package\rsa_visualization.exe --release
+          New-Item -ItemType Directory -Force package | Out-Null
+
+          Copy-Item build\Release\rsa_visualization.exe package\
+
+          windeployqt --release --no-translations package\rsa_visualization.exe
+
+          Copy-Item "$env:VCPKG_INSTALLATION_ROOT\installed\x64-windows\bin\libcrypto*.dll" package\ -ErrorAction SilentlyContinue
+          Copy-Item "$env:VCPKG_INSTALLATION_ROOT\installed\x64-windows\bin\libssl*.dll" package\ -ErrorAction SilentlyContinue
 
       - name: Zip Windows package
         shell: pwsh
@@ -149,7 +173,7 @@ jobs:
 
     steps:
       - name: Download artifacts
-        uses: actions/download-artifact@v5
+        uses: actions/download-artifact@v4
         with:
           path: dist
           merge-multiple: true
