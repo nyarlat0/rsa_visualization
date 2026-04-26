@@ -13,6 +13,14 @@ find_package(Boost REQUIRED)
 
 qt_standard_project_setup()
 
+set(WINDOWS_RESOURCES)
+
+if(WIN32)
+    set(WINDOWS_RESOURCES
+        assets/rsa_visualization.rc
+    )
+endif()
+
 qt_add_executable(${PROJECT_NAME}
     src/main.cpp
     src/main_widget.cpp
@@ -27,6 +35,7 @@ qt_add_executable(${PROJECT_NAME}
     include/mod_circle_widget.h
     include/rsa.h
     include/helpers.h
+    ${WINDOWS_RESOURCES}
 )
 
 target_include_directories(${PROJECT_NAME}
