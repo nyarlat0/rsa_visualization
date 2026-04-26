@@ -75,33 +75,30 @@ jobs:
 
       - name: Download linuxdeploy and Qt plugin
         run: |
-          wget -O linuxdeploy-x86_64.AppImage \
+          mkdir -p tools
+
+          wget -O tools/linuxdeploy-x86_64.AppImage \
             https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-x86_64.AppImage
 
-          wget -O linuxdeploy-plugin-qt-x86_64.AppImage \
+          wget -O tools/linuxdeploy-plugin-qt-x86_64.AppImage \
             https://github.com/linuxdeploy/linuxdeploy-plugin-qt/releases/download/continuous/linuxdeploy-plugin-qt-x86_64.AppImage
 
-          chmod +x linuxdeploy-x86_64.AppImage linuxdeploy-plugin-qt-x86_64.AppImage
+          chmod +x tools/linuxdeploy-x86_64.AppImage tools/linuxdeploy-plugin-qt-x86_64.AppImage
 
       - name: Build AppImage
         env:
           APPIMAGE_EXTRACT_AND_RUN: "1"
         run: |
           export QMAKE="$(which qmake)"
-          ./linuxdeploy-x86_64.AppImage \
+          ./tools/linuxdeploy-x86_64.AppImage \
             --appdir AppDir \
             --plugin qt \
             --output appimage
 
       - name: Rename Linux artifact
         run: |
-          mv ./*.AppImage rsa_visualization-linux-x86_64.AppImage
-
-      - name: Upload Linux artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: rsa_visualization-linux-x86_64
-          path: rsa_visualization-linux-x86_64.AppImage
+          appimage="$(find . -maxdepth 1 -type f -name '*.AppImage' -print -quit)"
+          mv "$appimage" rsa_visualization-linux-x86_64.AppImage
 
   windows:
     name: Build Windows zip
