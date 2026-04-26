@@ -7,7 +7,7 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
-find_package(Qt6 REQUIRED COMPONENTS Widgets Concurrent)
+find_package(Qt6 6.8 REQUIRED COMPONENTS Widgets Concurrent)
 find_package(OpenSSL REQUIRED)
 find_package(Boost REQUIRED)
 
