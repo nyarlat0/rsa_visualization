@@ -1,6 +1,6 @@
 #include "rsa.h"
 #include <QByteArray>
-#include <boost/multiprecision/fwd.hpp>
+#include <boost/multiprecision/cpp_int.hpp>
 #include <openssl/bn.h>
 #include <openssl/evp.h>
 #include <openssl/pem.h>
