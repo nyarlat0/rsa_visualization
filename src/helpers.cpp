@@ -6,7 +6,7 @@ int rem(QWidget *w, double factor) {
 }
 
 int mod_scale(QWidget *w, int scale, double ratio) {
-  return rem(w, pow(1.5, scale));
+  return rem(w, pow(ratio, scale));
 }
 
 bool validate_num(const QString &txt) {

@@ -1,10 +1,11 @@
 #pragma once
 
-#include <QChronoTimer>
 #include <QPointF>
 #include <QVector>
 #include <QWidget>
 #include <boost/multiprecision/cpp_int.hpp>
+
+class QChronoTimer;
 
 using boost::multiprecision::cpp_int;
 
@@ -34,7 +35,7 @@ public:
   void set_animation_trail_max_points(int max_points);
 
 protected:
-  void paintEvent(QPaintEvent *event) override;
+  virtual void paintEvent(QPaintEvent *event) override;
 
 private:
   cpp_int mod = 0;

@@ -1,11 +1,11 @@
 #pragma once
 
 #include <QFutureWatcher>
-#include <QLineF>
 #include <QMainWindow>
 #include <QVector>
 
 class QLayout;
+class QLineF;
 class EncryptWidget;
 class DecryptWidget;
 

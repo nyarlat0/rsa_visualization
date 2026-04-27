@@ -1,9 +1,9 @@
 #pragma once
 #include <QFutureWatcher>
-#include <QLineF>
 #include <QVector>
 #include <QWidget>
 class QLabel;
+class QLineF;
 class QTextEdit;
 class QLineEdit;
 class QPushButton;
@@ -38,9 +38,7 @@ private:
   QFutureWatcher<QVector<QLineF>> *circle_watcher = nullptr;
 
   bool validate_fields(const QString &d_in, const QString &p_in,
-                       const QString &q_in, const QString &ctxt);
-  bool validate_fields(const QString &d_in, const QString &p_in,
-                       const QString &q_in);
+                       const QString &q_in, const QString &ctxt = "12345");
 
   QString decrypt();
   void export_pubkey();

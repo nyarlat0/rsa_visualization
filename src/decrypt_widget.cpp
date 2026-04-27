@@ -53,35 +53,6 @@ bool DecryptWidget::validate_fields(const QString &d_in, const QString &p_in,
 
   return true;
 }
-bool DecryptWidget::validate_fields(const QString &d_in, const QString &p_in,
-                                    const QString &q_in) {
-  const auto error_style =
-      QString("border: 2px solid red; border-radius: %1px;")
-          .arg(mod_scale(this, -2));
-
-  if (d_in.isEmpty() || !validate_num(d_in)) {
-    d_edit->setStyleSheet(error_style);
-    emit error_signal("Please enter d as single number!");
-    return false;
-  }
-  d_edit->setStyleSheet("");
-
-  if (p_in.isEmpty() || !validate_num(p_in)) {
-    p_edit->setStyleSheet(error_style);
-    emit error_signal("Please enter p as single number!");
-    return false;
-  }
-  p_edit->setStyleSheet("");
-
-  if (q_in.isEmpty() || !validate_num(q_in)) {
-    q_edit->setStyleSheet(error_style);
-    emit error_signal("Please enter q as single number!");
-    return false;
-  }
-  q_edit->setStyleSheet("");
-
-  return true;
-}
 
 QString DecryptWidget::decrypt() {
   auto d_in = d_edit->toPlainText().trimmed();

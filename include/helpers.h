@@ -1,7 +1,6 @@
 class QString;
 class QWidget;
 class QLineF;
-#include <QVector>
 #include <boost/multiprecision/cpp_int.hpp>
 
 using boost::multiprecision::cpp_int;

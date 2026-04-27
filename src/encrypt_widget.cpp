@@ -48,28 +48,6 @@ bool EncryptWidget::validate_fields(const QString &e_in, const QString &n_in,
   return true;
 }
 
-bool EncryptWidget::validate_fields(const QString &e_in, const QString &n_in) {
-  const auto error_style =
-      QString("border: 2px solid red; border-radius: %1px;")
-          .arg(mod_scale(this, -2));
-
-  if (e_in.isEmpty() || !validate_num(e_in)) {
-    e_edit->setStyleSheet(error_style);
-    emit error_signal("Please enter e!");
-    return false;
-  }
-  e_edit->setStyleSheet("");
-
-  if (n_in.isEmpty() || !validate_num(n_in)) {
-    n_edit->setStyleSheet(error_style);
-    emit error_signal("Please enter n as single number!");
-    return false;
-  }
-  n_edit->setStyleSheet("");
-
-  return true;
-}
-
 QString EncryptWidget::encrypt() {
   auto e_in = e_edit->text().trimmed();
   auto n_in = n_edit->toPlainText().trimmed();
