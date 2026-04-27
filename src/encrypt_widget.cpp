@@ -10,11 +10,9 @@
 #include <QRegularExpression>
 #include <QRegularExpressionValidator>
 #include <QTextEdit>
-#include <QVBoxLayout>
 #include <QWidget>
 #include <QtConcurrent>
 #include <boost/multiprecision/cpp_int.hpp>
-#include <qlineedit.h>
 
 using boost::multiprecision::cpp_int;
 

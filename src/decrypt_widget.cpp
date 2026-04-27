@@ -13,7 +13,6 @@
 #include <QWidget>
 #include <QtConcurrent>
 #include <boost/multiprecision/cpp_int.hpp>
-#include <qpushbutton.h>
 
 using boost::multiprecision::cpp_int;
 

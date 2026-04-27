@@ -11,10 +11,7 @@ cpp_int encode_message(const QString &m) {
   auto bytes = m.toUtf8();
   cpp_int result = 0;
 
-  for (unsigned char byte : bytes) {
-    result <<= 8;
-    result += byte;
-  }
+  import_bits(result, bytes.begin(), bytes.end(), 8, true);
 
   return result;
 }

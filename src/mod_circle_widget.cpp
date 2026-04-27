@@ -1,18 +1,17 @@
 #include "mod_circle_widget.h"
 #include "rsa.h"
-#include <thread>
 
 #include <QChronoTimer>
 #include <QEasingCurve>
 #include <QPainter>
 #include <QPen>
 #include <QPointF>
-#include <QVector>
 
 #include <algorithm>
 #include <cmath>
 #include <random>
 #include <set>
+#include <thread>
 
 namespace {
 
