@@ -12,12 +12,10 @@
 #include <QLabel>
 #include <QLineEdit>
 #include <QMainWindow>
-#include <QMessageBox>
 #include <QParallelAnimationGroup>
 #include <QPropertyAnimation>
 #include <QPushButton>
 #include <QSignalBlocker>
-#include <QStatusBar>
 #include <QTextEdit>
 #include <QTimer>
 #include <QWidget>
